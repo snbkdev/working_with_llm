@@ -66,6 +66,7 @@ class SnakeGame:
         self.direction = (1, 0)
         self.pending_direction = (1, 0)
         self.score = 0
+        self.speed = c.SPEED_START
         self.paused = False
         self.game_over = False
         self.place_food()
@@ -144,6 +145,7 @@ class SnakeGame:
         self.snake.insert(0, new_head)
         if new_head == self.food:
             self.score += 1
+            self.speed = min(c.SPEED_MAX, self.speed + c.SPEED_STEP)
             self.sounds.play_eat()
             self.place_food()
         else:
@@ -176,10 +178,15 @@ class SnakeGame:
         score = self.bar_font.render(f"Счёт: {self.score}", True, c.TEXT_COLOR)
         self.screen.blit(score, (130, cy - score.get_height() // 2))
 
+        # Рекорд и текущая скорость — двумя строками
         best = self.small_font.render(
             f"Рекорд: {self.best}", True, c.MUTED_COLOR
         )
-        self.screen.blit(best, (245, cy - best.get_height() // 2))
+        speed = self.small_font.render(
+            f"Скорость: {self.speed:g}", True, c.MUTED_COLOR
+        )
+        self.screen.blit(best, (245, cy - best.get_height() - 1))
+        self.screen.blit(speed, (245, cy + 1))
 
         for btn in self.topbar_buttons():
             btn.draw(self.screen, self.small_font, mouse)
@@ -311,4 +318,4 @@ class SnakeGame:
                 self.handle_event(event)
             self.step()
             self.draw()
-            self.clock.tick(c.FPS)
+            self.clock.tick(self.speed)
