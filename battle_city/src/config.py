@@ -28,9 +28,13 @@ PLAYER_MAX_BULLETS = 1         # сколько пуль игрока однов
 # --- Враги ---
 TOTAL_ENEMIES = 10             # всего врагов за уровень
 MAX_ACTIVE_ENEMIES = 4         # одновременно на поле
+ENEMY_START_DELAY = 6000       # пауза перед первым врагом (мс), ~6 сек
 ENEMY_SPAWN_INTERVAL = 2500    # мс между появлениями
 ENEMY_SHOOT_CHANCE = 0.012     # вероятность выстрела за кадр
 ENEMY_TURN_CHANCE = 0.02       # вероятность смены направления за кадр
+
+# --- Звук ---
+SOUND_ENABLED = True
 
 # --- Направления (dx, dy) ---
 UP = (0, -1)

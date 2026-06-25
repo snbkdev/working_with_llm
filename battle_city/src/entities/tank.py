@@ -29,12 +29,6 @@ class Tank:
         """Привязка координаты к ближайшей полосе сетки."""
         return round((value - c.TANK_OFFSET) / c.TILE) * c.TILE + c.TANK_OFFSET
 
-    def _snap_perpendicular(self):
-        if self.dir in (c.LEFT, c.RIGHT):
-            self.y = self._snap(self.y)
-        else:
-            self.x = self._snap(self.x)
-
     def face(self, direction):
         self.dir = direction
 
@@ -42,26 +36,36 @@ class Tank:
         """Двигает танк на шаг в текущем направлении, если путь свободен.
 
         solids   — стены и база; blockers — прямоугольники других танков.
+        Привязка к сетке проверяется вместе с шагом (атомарно), поэтому
+        не может вдвинуть танк в стену или другой танк.
         """
-        self._snap_perpendicular()
-        dx = self.dir[0] * self.speed
-        dy = self.dir[1] * self.speed
-        new = self.rect.move(dx, dy)
+        # Кандидат: сначала привязка перпендикуляра к полосе, затем шаг
+        nx, ny = self.x, self.y
+        if self.dir in (c.LEFT, c.RIGHT):
+            ny = self._snap(self.y)
+        else:
+            nx = self._snap(self.x)
+        nx += self.dir[0] * self.speed
+        ny += self.dir[1] * self.speed
+        new = pygame.Rect(round(nx), round(ny), c.TANK_SIZE, c.TANK_SIZE)
 
         # Границы поля
         if (new.left < 0 or new.top < 0
                 or new.right > c.FIELD_W or new.bottom > c.FIELD_H):
             return False
-        # Стены, база и другие танки
+        # Стены и база
         for s in solids:
             if new.colliderect(s):
                 return False
+        # Другие танки: блокируем, только если ещё не перекрываемся
+        # (если уже слиплись — даём возможность разъехаться)
+        cur = self.rect
         for b in blockers:
-            if new.colliderect(b):
+            if new.colliderect(b) and not cur.colliderect(b):
                 return False
 
-        self.x += dx
-        self.y += dy
+        self.x = nx
+        self.y = ny
         return True
 
     # --- Стрельба ---

@@ -11,7 +11,12 @@ import pygame
 from . import config as c
 from .entities.enemy import Enemy
 from .entities.tank import Tank
+from .menu import Menu
+from .sound import Sounds
 from .world.level import Level
+
+STATE_MENU = "menu"
+STATE_PLAYING = "playing"
 
 
 class Game:
@@ -22,7 +27,11 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Helvetica", 18, bold=True)
         self.small = pygame.font.SysFont("Helvetica", 13)
-        self.reset()
+        self.sounds = Sounds(c.SOUND_ENABLED)
+
+        # Начинаем с главного меню; уровень создаётся при «Новой игре»
+        self.state = STATE_MENU
+        self.menu = Menu()
 
     def reset(self):
         self.level = Level()
@@ -35,7 +44,17 @@ class Game:
         self.enemies = []
         self.enemies_to_spawn = c.TOTAL_ENEMIES   # сколько ещё появится
         self.spawn_index = 0
-        self.last_spawn = -c.ENEMY_SPAWN_INTERVAL
+        # Пауза перед первым врагом (~6 сек после старта)
+        self.next_spawn_at = pygame.time.get_ticks() + c.ENEMY_START_DELAY
+
+    # --- Переходы состояний ---
+    def start_new_game(self):
+        self.reset()
+        self.state = STATE_PLAYING
+
+    def back_to_menu(self):
+        self.sounds.engine_stop()
+        self.state = STATE_MENU
 
     # --- Стрельба ---
     def player_bullets(self):
@@ -48,6 +67,7 @@ class Game:
         if len(self.player_bullets()) >= c.PLAYER_MAX_BULLETS:
             return
         self.bullets.append(self.player.shoot())
+        self.sounds.play_shoot()
         self.last_shot = now
 
     # --- Появление врагов ---
@@ -56,7 +76,7 @@ class Game:
             return
         if len(self.enemies) >= c.MAX_ACTIVE_ENEMIES:
             return
-        if now - self.last_spawn < c.ENEMY_SPAWN_INTERVAL:
+        if now < self.next_spawn_at:
             return
 
         spawns = self.level.enemy_spawns           # лево / центр / право
@@ -71,22 +91,20 @@ class Game:
                 self.enemies.append(enemy)
                 self.enemies_to_spawn -= 1
                 self.spawn_index = (self.spawn_index + k + 1) % n
-                self.last_spawn = now
+                self.next_spawn_at = now + c.ENEMY_SPAWN_INTERVAL
                 return
         # Все точки заняты — попробуем в следующий раз
 
     # --- Ввод ---
-    def handle_events(self):
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                self.quit()
-            if e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_ESCAPE:
-                    self.quit()
-                elif e.key == pygame.K_r:
-                    self.reset()
-                elif e.key == pygame.K_SPACE:
-                    self.shoot()
+    def handle_game_event(self, e):
+        """Дискретные клавиши в режиме игры (стрельба, рестарт, в меню)."""
+        if e.type == pygame.KEYDOWN:
+            if e.key == pygame.K_ESCAPE:
+                self.back_to_menu()
+            elif e.key == pygame.K_r:
+                self.reset()
+            elif e.key == pygame.K_SPACE:
+                self.shoot()
 
     def read_direction(self, keys):
         if keys[pygame.K_UP] or keys[pygame.K_w]:
@@ -110,9 +128,16 @@ class Game:
 
         # Игрок (враги — препятствия)
         enemy_rects = [e.rect for e in self.enemies]
+        moved = False
         if direction is not None:
             self.player.face(direction)
-            self.player.try_move(solids, enemy_rects)
+            moved = self.player.try_move(solids, enemy_rects)
+
+        # Звук двигателя — пока игрок реально едет
+        if moved:
+            self.sounds.engine_start()
+        else:
+            self.sounds.engine_stop()
 
         # Враги (ИИ)
         for e in self.enemies:
@@ -128,12 +153,31 @@ class Game:
             if not (0 <= b.x <= c.FIELD_W and 0 <= b.y <= c.FIELD_H):
                 b.alive = False
                 continue
+            # Попадание в стену/базу
             if self.level.hit(b.rect):
                 b.alive = False
+                self.sounds.play_hit()
+                continue
+            # Попадание в танк (звук есть; разрушение врага — отдельный этап)
+            if self.bullet_hits_tank(b):
+                b.alive = False
+                self.sounds.play_hit()
         self.bullets = [b for b in self.bullets if b.alive]
+
+    def bullet_hits_tank(self, b):
+        """Пуля игрока попадает во врага, пуля врага — в игрока.
+        Возвращает True при попадании (танки пока не уничтожаются)."""
+        if b.owner == "player":
+            return any(b.rect.colliderect(e.rect) for e in self.enemies)
+        return b.rect.colliderect(self.player.rect)
 
     # --- Отрисовка ---
     def draw(self):
+        if self.state == STATE_MENU:
+            self.menu.draw(self.screen)
+            pygame.display.flip()
+            return
+
         self.screen.fill(c.BG_COLOR)
         pygame.draw.rect(self.screen, c.FIELD_COLOR, (0, 0, c.FIELD_W, c.FIELD_H))
         self.draw_grid()
@@ -177,7 +221,7 @@ class Game:
             "Пробел — огонь",
             "",
             "R — рестарт",
-            "Esc — выход",
+            "Esc — в меню",
         ]
         y = 150
         for line in lines:
@@ -191,7 +235,20 @@ class Game:
 
     def run(self):
         while True:
-            self.handle_events()
-            self.update()
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    self.quit()
+                elif self.state == STATE_MENU:
+                    action = self.menu.handle_event(e)
+                    if action == "new_game":
+                        self.start_new_game()
+                    elif action == "quit":
+                        self.quit()
+                    # «load» и «settings» пока без действия
+                else:
+                    self.handle_game_event(e)
+
+            if self.state == STATE_PLAYING:
+                self.update()
             self.draw()
             self.clock.tick(c.FPS)
