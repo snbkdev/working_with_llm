@@ -51,3 +51,7 @@ htmlcov/
 
 # --- Игровые данные ---
 snake_game/scores.json
+
+
+*.png
+*.svg
