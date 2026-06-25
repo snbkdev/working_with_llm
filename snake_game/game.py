@@ -8,6 +8,7 @@ import pygame
 import config as c
 from button import Button
 from scores import load_scores, save_score
+from sound import Sounds
 
 
 class SnakeGame:
@@ -21,6 +22,7 @@ class SnakeGame:
         self.bar_font = pygame.font.SysFont("Helvetica", 18, bold=True)
         self.big_font = pygame.font.SysFont("Helvetica", 30, bold=True)
 
+        self.sounds = Sounds(c.SOUND_ENABLED)
         self.scores = load_scores()
         self.best = self.scores[0]["score"] if self.scores else 0
 
@@ -33,9 +35,25 @@ class SnakeGame:
             (c.WIDTH - 80, btn_y, 66, 32), "Выход", self.quit,
             text_color=c.BTN_EXIT,
         )
-        self.buttons = [self.pause_btn, self.exit_btn]
+        # Кнопка «Начать» по центру стартового экрана
+        sb_w, sb_h = 180, 48
+        self.start_btn = Button(
+            (c.WIDTH // 2 - sb_w // 2, c.TOPBAR + int(c.HEIGHT * 0.62),
+             sb_w, sb_h),
+            "Начать", self.start_game, text_color=c.ACCENT_COLOR,
+        )
 
+        self.started = False
         self.reset()
+
+    def start_game(self):
+        self.started = True
+
+    def topbar_buttons(self):
+        # До старта показываем только «Выход», в игре — «Паузу» и «Выход»
+        if not self.started:
+            return [self.exit_btn]
+        return [self.pause_btn, self.exit_btn]
 
     def reset(self):
         start_x, start_y = c.COLS // 2, c.ROWS // 2
@@ -68,13 +86,24 @@ class SnakeGame:
         if event.type == pygame.QUIT:
             self.quit()
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            for btn in self.buttons:
+            buttons = self.topbar_buttons()
+            if not self.started:
+                buttons = buttons + [self.start_btn]
+            for btn in buttons:
                 if btn.handle_click(event.pos):
                     return
         if event.type != pygame.KEYDOWN:
             return
 
         key = event.key
+        # Стартовый экран: запуск пробелом/Enter, выход — Esc
+        if not self.started:
+            if key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
+                self.start_game()
+            elif key == pygame.K_ESCAPE:
+                self.quit()
+            return
+
         if key == pygame.K_ESCAPE:
             self.quit()
         if key == pygame.K_r and self.game_over:
@@ -98,18 +127,16 @@ class SnakeGame:
 
     # --- Логика ---
     def step(self):
-        if self.paused or self.game_over:
+        if not self.started or self.paused or self.game_over:
             return
 
         self.direction = self.pending_direction
         hx, hy = self.snake[0]
         dx, dy = self.direction
-        new_head = (hx + dx, hy + dy)
+        # Проход сквозь стены: выход за край переносит на противоположную сторону
+        new_head = ((hx + dx) % c.COLS, (hy + dy) % c.ROWS)
 
-        # Столкновение со стеной или с собой
-        if not (0 <= new_head[0] < c.COLS and 0 <= new_head[1] < c.ROWS):
-            self.end_game()
-            return
+        # Проигрыш только при столкновении с собственным телом
         if new_head in self.snake:
             self.end_game()
             return
@@ -117,12 +144,14 @@ class SnakeGame:
         self.snake.insert(0, new_head)
         if new_head == self.food:
             self.score += 1
+            self.sounds.play_eat()
             self.place_food()
         else:
             self.snake.pop()  # двигаемся: убираем хвост
 
     def end_game(self):
         self.game_over = True
+        self.sounds.play_crash()
         self.scores = save_score(self.score)
         self.best = self.scores[0]["score"] if self.scores else 0
 
@@ -152,7 +181,7 @@ class SnakeGame:
         )
         self.screen.blit(best, (245, cy - best.get_height() // 2))
 
-        for btn in self.buttons:
+        for btn in self.topbar_buttons():
             btn.draw(self.screen, self.small_font, mouse)
 
     def draw_playfield(self):
@@ -172,7 +201,9 @@ class SnakeGame:
         for i, cell in enumerate(self.snake):
             self.draw_cell(cell, c.HEAD_COLOR if i == 0 else c.SNAKE_COLOR)
 
-        if self.paused:
+        if not self.started:
+            self.draw_start()
+        elif self.paused:
             self.draw_overlay("ПАУЗА", "Пробел или «Продолжить»")
         elif self.game_over:
             self.draw_gameover()
@@ -190,6 +221,42 @@ class SnakeGame:
         overlay = pygame.Surface((c.WIDTH, c.HEIGHT), pygame.SRCALPHA)
         overlay.fill((30, 30, 46, 200))
         self.screen.blit(overlay, (0, c.TOPBAR))
+
+    def draw_start(self):
+        self._dim()
+        cx = c.WIDTH // 2
+        top = c.TOPBAR + 50
+
+        title = self.big_font.render("🐍 Змейка", True, c.ACCENT_COLOR)
+        self.screen.blit(title, (cx - title.get_width() // 2, top))
+
+        heading = self.font.render("Управление", True, c.TEXT_COLOR)
+        self.screen.blit(heading, (cx - heading.get_width() // 2, top + 56))
+
+        controls = [
+            ("W A S D", "движение"),
+            ("Пробел", "пауза"),
+            ("R", "рестарт после проигрыша"),
+            ("Esc  или  «Выход»", "выход"),
+        ]
+        row_y = top + 92
+        for keys, action in controls:
+            k = self.small_font.render(keys, True, c.TEXT_COLOR)
+            a = self.small_font.render(f"— {action}", True, c.MUTED_COLOR)
+            # Клавиши выравниваем по правому краю от центра, действие — слева
+            self.screen.blit(k, (cx - 10 - k.get_width(), row_y))
+            self.screen.blit(a, (cx + 10, row_y))
+            row_y += 26
+
+        # Кнопка «Начать»
+        self.start_btn.draw(self.screen, self.font, pygame.mouse.get_pos())
+        hint = self.small_font.render(
+            "или нажмите Пробел", True, c.MUTED_COLOR
+        )
+        self.screen.blit(
+            hint,
+            (cx - hint.get_width() // 2, self.start_btn.rect.bottom + 12),
+        )
 
     def draw_overlay(self, title, subtitle):
         self._dim()
