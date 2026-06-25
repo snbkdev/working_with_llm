@@ -2,7 +2,7 @@
 
 import pygame
 
-import config as c
+from .. import config as c
 
 
 class Bullet:

@@ -4,15 +4,14 @@
     python battle_city/main.py
 
 Структура (см. PLAN.md):
-    config.py — настройки и цвета
-    level.py  — карта поля, стены, база
-    bullet.py — пуля
-    tank.py   — танк (игрок/враг)
-    game.py   — игровой цикл
-    main.py   — точка входа (этот файл)
+    src/config.py        — настройки и цвета
+    src/game.py          — игровой цикл
+    src/world/level.py   — карта поля, стены, база
+    src/entities/        — bullet.py, tank.py, enemy.py
+    main.py              — точка входа (этот файл)
 """
 
-from game import Game
+from src.game import Game
 
 
 def main():

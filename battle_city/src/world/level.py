@@ -11,7 +11,7 @@
 
 import pygame
 
-import config as c
+from .. import config as c
 
 LEVEL = [
     "E.....E.....E",
@@ -103,29 +103,52 @@ class Level:
 
     def _draw_brick(self, screen, col, row):
         r = tile_rect(col, row)
-        pygame.draw.rect(screen, c.BRICK_DARK, r)
-        # Кирпичная кладка: четыре блока
-        h = c.TILE // 2
-        for i in (0, 1):
-            for j in (0, 1):
-                bx = r.x + j * h + 1 + (2 if i else 0)
-                by = r.y + i * h + 1
-                pygame.draw.rect(
-                    screen, c.BRICK_COLOR, (bx, by, h - 3, h - 2)
-                )
+        pygame.draw.rect(screen, c.BRICK_DARK, r)  # «раствор» — фон
+        bh = (c.TILE - 2) // 4                       # 4 ряда кладки
+        bw = c.TILE // 2                             # ширина кирпича
+        for i in range(4):
+            y = r.y + 1 + i * bh
+            shift = 0 if i % 2 == 0 else c.TILE // 4  # смещение через ряд
+            x = r.x + 1 - shift
+            while x < r.right - 1:
+                bx0 = max(r.x + 1, x)
+                bx1 = min(r.right - 1, x + bw - 1)
+                if bx1 - bx0 > 1:
+                    pygame.draw.rect(
+                        screen, c.BRICK_COLOR, (bx0, y, bx1 - bx0, bh - 1)
+                    )
+                x += bw
 
     def _draw_steel(self, screen, col, row):
         r = tile_rect(col, row)
         pygame.draw.rect(screen, c.STEEL_DARK, r)
-        pygame.draw.rect(screen, c.STEEL_COLOR, r.inflate(-6, -6))
-        pygame.draw.rect(screen, c.STEEL_DARK, r.inflate(-6, -6), 2)
+        plate = r.inflate(-4, -4)
+        pygame.draw.rect(screen, c.STEEL_COLOR, plate)
+        pygame.draw.rect(screen, c.STEEL_DARK, plate, 2)
+        # Заклёпки по углам
+        for bx, by in (
+            (plate.x + 4, plate.y + 4), (plate.right - 4, plate.y + 4),
+            (plate.x + 4, plate.bottom - 4), (plate.right - 4, plate.bottom - 4),
+        ):
+            pygame.draw.circle(screen, c.STEEL_DARK, (bx, by), 2)
 
     def _draw_base(self, screen):
         r = self.base_rect()
-        pygame.draw.rect(screen, c.BASE_DARK, r)
-        # Простой «орёл»: основание + тело
         cx = r.centerx
-        pygame.draw.rect(screen, c.BASE_COLOR, (r.x + 8, r.y + 22, r.width - 16, 12))
+        pygame.draw.rect(screen, (40, 40, 40), r)
+        # Подставка
+        pygame.draw.rect(
+            screen, c.BASE_GROUND, (r.x + 4, r.bottom - 9, r.width - 8, 7)
+        )
+        # Крылья
+        pygame.draw.polygon(screen, c.BASE_DARK, [
+            (cx - 11, r.y + 16), (cx - 18, r.y + 27), (cx - 10, r.bottom - 11)])
+        pygame.draw.polygon(screen, c.BASE_DARK, [
+            (cx + 11, r.y + 16), (cx + 18, r.y + 27), (cx + 10, r.bottom - 11)])
+        # Тело орла
         pygame.draw.polygon(screen, c.BASE_COLOR, [
-            (cx, r.y + 6), (r.x + 10, r.y + 24), (r.right - 10, r.y + 24),
-        ])
+            (cx, r.y + 8), (cx - 10, r.y + 19),
+            (cx - 9, r.bottom - 11), (cx + 9, r.bottom - 11),
+            (cx + 10, r.y + 19)])
+        # Голова
+        pygame.draw.circle(screen, c.BASE_COLOR, (cx, r.y + 9), 4)

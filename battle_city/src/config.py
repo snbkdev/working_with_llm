@@ -40,20 +40,29 @@ RIGHT = (1, 0)
 
 # --- Цвета (R, G, B) ---
 BG_COLOR = (20, 20, 20)
-FIELD_COLOR = (0, 0, 0)
+FIELD_COLOR = (8, 8, 8)
+GRID_LINE = (26, 26, 26)        # еле заметная сетка полос
+FIELD_BORDER = (70, 70, 70)
 HUD_BG = (99, 99, 99)
-HUD_TEXT = (33, 33, 33)
+HUD_TEXT = (28, 28, 28)
 WHITE = (236, 236, 236)
-BRICK_COLOR = (150, 75, 35)
-BRICK_DARK = (110, 50, 20)
-STEEL_COLOR = (160, 160, 160)
-STEEL_DARK = (90, 90, 90)
-PLAYER_COLOR = (220, 190, 60)
-PLAYER_TRACK = (180, 150, 40)
-ENEMY_COLOR = (210, 210, 210)
-ENEMY_TRACK = (150, 150, 150)
-BULLET_COLOR = (240, 240, 240)
-BASE_COLOR = (210, 180, 40)
-BASE_DARK = (120, 100, 20)
+
+BRICK_COLOR = (178, 92, 42)
+BRICK_DARK = (92, 44, 22)       # «раствор» между кирпичами
+STEEL_COLOR = (190, 195, 205)
+STEEL_DARK = (95, 100, 110)
+
+TANK_OUTLINE = (18, 18, 18)
+PLAYER_COLOR = (180, 214, 92)   # игрок — зелёный
+PLAYER_TRACK = (120, 150, 60)
+ENEMY_COLOR = (208, 212, 216)   # враг — серебристый
+ENEMY_TRACK = (130, 134, 138)
+ENEMY_CORE = (200, 70, 60)      # красный «глаз» врага
+
+BULLET_COLOR = (245, 240, 220)
+BASE_COLOR = (224, 196, 64)
+BASE_DARK = (90, 78, 28)
+BASE_GROUND = (60, 60, 60)
+
 TEXT_COLOR = (236, 236, 236)
 ACCENT = (220, 80, 60)

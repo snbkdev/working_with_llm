@@ -6,8 +6,8 @@
 
 import pygame
 
-import config as c
-from bullet import Bullet
+from .. import config as c
+from .bullet import Bullet
 
 
 class Tank:
@@ -38,8 +38,11 @@ class Tank:
     def face(self, direction):
         self.dir = direction
 
-    def try_move(self, solids):
-        """Двигает танк на шаг в текущем направлении, если путь свободен."""
+    def try_move(self, solids, blockers=()):
+        """Двигает танк на шаг в текущем направлении, если путь свободен.
+
+        solids   — стены и база; blockers — прямоугольники других танков.
+        """
         self._snap_perpendicular()
         dx = self.dir[0] * self.speed
         dy = self.dir[1] * self.speed
@@ -49,9 +52,12 @@ class Tank:
         if (new.left < 0 or new.top < 0
                 or new.right > c.FIELD_W or new.bottom > c.FIELD_H):
             return False
-        # Стены и база
+        # Стены, база и другие танки
         for s in solids:
             if new.colliderect(s):
+                return False
+        for b in blockers:
+            if new.colliderect(b):
                 return False
 
         self.x += dx
@@ -75,22 +81,40 @@ class Tank:
         r = self.rect
         body = c.PLAYER_COLOR if self.is_player else c.ENEMY_COLOR
         track = c.PLAYER_TRACK if self.is_player else c.ENEMY_TRACK
+        out = c.TANK_OUTLINE
+        horiz = self.dir in (c.LEFT, c.RIGHT)
 
-        if self.dir in (c.UP, c.DOWN):
-            pygame.draw.rect(screen, track, (r.x, r.y, 6, r.height))
-            pygame.draw.rect(screen, track, (r.right - 6, r.y, 6, r.height))
-            pygame.draw.rect(
-                screen, body, (r.x + 6, r.y + 4, r.width - 12, r.height - 8)
-            )
+        # Контур-подложка для контраста на тёмном поле
+        pygame.draw.rect(screen, out, r, border_radius=5)
+
+        if horiz:
+            # Гусеницы сверху и снизу
+            pygame.draw.rect(screen, track, (r.x, r.y, r.width, 7), border_radius=3)
+            pygame.draw.rect(screen, track, (r.x, r.bottom - 7, r.width, 7), border_radius=3)
+            for i in range(r.x + 4, r.right - 2, 6):
+                pygame.draw.line(screen, out, (i, r.y + 1), (i, r.y + 5))
+                pygame.draw.line(screen, out, (i, r.bottom - 6), (i, r.bottom - 2))
+            hull = pygame.Rect(r.x + 3, r.y + 7, r.width - 6, r.height - 14)
         else:
-            pygame.draw.rect(screen, track, (r.x, r.y, r.width, 6))
-            pygame.draw.rect(screen, track, (r.x, r.bottom - 6, r.width, 6))
-            pygame.draw.rect(
-                screen, body, (r.x + 4, r.y + 6, r.width - 8, r.height - 12)
-            )
+            # Гусеницы слева и справа
+            pygame.draw.rect(screen, track, (r.x, r.y, 7, r.height), border_radius=3)
+            pygame.draw.rect(screen, track, (r.right - 7, r.y, 7, r.height), border_radius=3)
+            for i in range(r.y + 4, r.bottom - 2, 6):
+                pygame.draw.line(screen, out, (r.x + 1, i), (r.x + 5, i))
+                pygame.draw.line(screen, out, (r.right - 6, i), (r.right - 2, i))
+            hull = pygame.Rect(r.x + 7, r.y + 3, r.width - 14, r.height - 6)
 
-        # Башня и ствол
-        pygame.draw.rect(screen, body, r.inflate(-14, -14))
+        # Корпус
+        pygame.draw.rect(screen, body, hull, border_radius=3)
+
+        # Башня
         cx, cy = r.center
-        tx, ty = self.barrel_tip()
-        pygame.draw.line(screen, body, (cx, cy), (tx, ty), 5)
+        pygame.draw.circle(screen, out, (cx, cy), 7)
+        core = c.ENEMY_CORE if not self.is_player else body
+        pygame.draw.circle(screen, core, (cx, cy), 5)
+
+        # Ствол (выходит за корпус — видно направление)
+        bx = cx + self.dir[0] * (r.width // 2 + 3)
+        by = cy + self.dir[1] * (r.height // 2 + 3)
+        pygame.draw.line(screen, out, (cx, cy), (bx, by), 6)
+        pygame.draw.line(screen, body, (cx, cy), (bx, by), 4)
