@@ -1,2 +1,50 @@
-
+# --- Локальные/личные файлы ---
 info.txt
+
+# --- Python ---
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+
+# Кэш и скомпилированные файлы
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Пакеты/сборка
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Тесты и покрытие
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Переменные окружения
+.env
+.env.*
+!.env.example
+
+# --- Редакторы / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Логи ---
+*.log
