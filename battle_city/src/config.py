@@ -26,12 +26,14 @@ PLAYER_SHOOT_COOLDOWN = 350    # мс между выстрелами игрок
 PLAYER_MAX_BULLETS = 1         # сколько пуль игрока одновременно на поле
 
 # --- Враги ---
-TOTAL_ENEMIES = 10             # всего врагов за уровень
+ENEMY_COUNT_MIN = 10           # минимум врагов за уровень (рандом)
+ENEMY_COUNT_MAX = 15           # максимум врагов за уровень (рандом)
 MAX_ACTIVE_ENEMIES = 4         # одновременно на поле
 ENEMY_START_DELAY = 6000       # пауза перед первым врагом (мс), ~6 сек
 ENEMY_SPAWN_INTERVAL = 2500    # мс между появлениями
 ENEMY_SHOOT_CHANCE = 0.012     # вероятность выстрела за кадр
 ENEMY_TURN_CHANCE = 0.02       # вероятность смены направления за кадр
+ENEMY_SCORE = 100              # очков за уничтоженного врага
 
 # --- Звук ---
 SOUND_ENABLED = True
@@ -64,6 +66,14 @@ ENEMY_TRACK = (130, 134, 138)
 ENEMY_CORE = (200, 70, 60)      # красный «глаз» врага
 
 BULLET_COLOR = (245, 240, 220)
+
+# Взрыв: от яркой вспышки к огню и дыму
+EXPLOSION_FLASH = (255, 248, 220)
+EXPLOSION_CORE = (255, 220, 90)
+EXPLOSION_MID = (245, 150, 50)
+EXPLOSION_OUTER = (210, 70, 40)
+EXPLOSION_SMOKE = (110, 92, 80)
+
 BASE_COLOR = (224, 196, 64)
 BASE_DARK = (90, 78, 28)
 BASE_GROUND = (60, 60, 60)
