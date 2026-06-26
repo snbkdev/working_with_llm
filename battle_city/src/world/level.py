@@ -7,27 +7,15 @@
     'A' — база/орёл (защищаем; разрушение = поражение)
     'P' — точка появления игрока
     'E' — точка появления врага
+
+Сами карты хранятся в `battle_city/levels/*.txt` и грузятся через
+`world.levels` (см. `Level(rows=...)`).
 """
 
 import pygame
 
 from .. import config as c
-
-LEVEL = [
-    "E.....E.....E",
-    ".............",
-    ".BB.BBBBB.BB.",
-    ".B...B.B...B.",
-    ".B.B.....B.B.",
-    "...B.SSS.B...",
-    ".BB.S...S.BB.",
-    "...B.SSS.B...",
-    ".B.B.....B.B.",
-    ".B...B.B...B.",
-    ".BB.BBBBB.BB.",
-    ".....BBB.....",
-    "...P.BAB.....",
-]
+from . import levels
 
 
 def tile_rect(col, row):
@@ -35,7 +23,10 @@ def tile_rect(col, row):
 
 
 class Level:
-    def __init__(self):
+    def __init__(self, rows=None):
+        """rows — карта (список строк). Если None, грузится первый уровень."""
+        if rows is None:
+            rows = levels.load_level(0)
         self.bricks = set()       # клетки-кирпичи {(col, row)}
         self.steels = set()       # клетки-сталь
         self.enemy_spawns = []     # [(col, row), ...]
@@ -43,7 +34,7 @@ class Level:
         self.base_cell = (6, 12)
         self.base_alive = True
 
-        for row, line in enumerate(LEVEL):
+        for row, line in enumerate(rows):
             for col, ch in enumerate(line):
                 if ch == "B":
                     self.bricks.add((col, row))

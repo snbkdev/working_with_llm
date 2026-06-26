@@ -16,12 +16,14 @@ from .entities.explosion import Explosion
 from .entities.tank import Tank
 from .menu import Menu
 from .sound import Sounds
+from .world import levels
 from .world.level import Level
 
 STATE_MENU = "menu"
 STATE_PLAYING = "playing"
 STATE_PAUSED = "paused"
 STATE_CONTROLS = "controls"
+STATE_LEVELCLEAR = "levelclear"
 STATE_GAMEOVER = "gameover"
 
 MAIN_MENU_ITEMS = [
@@ -46,6 +48,9 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Helvetica", 18, bold=True)
         self.small = pygame.font.SysFont("Helvetica", 13)
+        # Крупные шрифты финальных экранов — создаём один раз, не покадрово
+        self.big = pygame.font.SysFont("Helvetica", 44, bold=True)
+        self.big2 = pygame.font.SysFont("Helvetica", 40, bold=True)
         self.sounds = Sounds(c.SOUND_ENABLED)
 
         # Начинаем с главного меню; уровень создаётся при «Новой игре»
@@ -55,14 +60,23 @@ class Game:
         self.pause_menu = Menu(PAUSE_MENU_ITEMS, title="ПАУЗА", overlay=True)
 
     def reset(self):
-        self.level = Level()
+        """Новая игра с первого уровня: сбрасываются очки и жизни."""
+        self.lives = c.PLAYER_LIVES
+        self.score = 0
+        self.load_level(0)
+
+    def load_level(self, index):
+        """Загружает уровень index и сбрасывает поле.
+
+        Очки и жизни сохраняются между уровнями (их обнуляет только reset).
+        """
+        self.level_index = index
+        self.level = Level(levels.load_level(index))
         col, row = self.level.player_spawn
         self.player = Tank(col, row, c.UP, is_player=True)
         self.bullets = []
         self.explosions = []
         self.last_shot = 0
-        self.lives = c.PLAYER_LIVES
-        self.score = 0
         self.result = None
         # Кратковременная неуязвимость на старте
         self.player_invuln_until = (
@@ -119,6 +133,20 @@ class Game:
         self.result = result
         self.sounds.engine_stop()
         self.state = STATE_GAMEOVER
+
+    def level_cleared(self):
+        """Уровень зачищен: следующий уровень либо финальная победа."""
+        if self.state != STATE_PLAYING:
+            return
+        self.sounds.engine_stop()
+        if self.level_index + 1 < levels.level_count():
+            self.state = STATE_LEVELCLEAR     # ждём подтверждения игрока
+        else:
+            self.game_over("win")             # пройден последний уровень
+
+    def next_level(self):
+        self.load_level(self.level_index + 1)
+        self.state = STATE_PLAYING
 
     # --- Стрельба ---
     def player_bullets(self):
@@ -243,9 +271,9 @@ class Game:
         self.bullets = [b for b in self.bullets if b.alive]
         self.explosions = [ex for ex in self.explosions if ex.alive]
 
-        # Победа: все враги уничтожены и больше не появятся
+        # Уровень зачищен: все враги уничтожены и больше не появятся
         if self.enemies_to_spawn == 0 and not self.enemies:
-            self.game_over("win")
+            self.level_cleared()
 
     def _bullet_vs_tanks(self, b, now):
         if b.owner == "player":
@@ -287,6 +315,8 @@ class Game:
             self.pause_menu.draw(self.screen)
         elif self.state == STATE_CONTROLS:
             self.draw_controls()
+        elif self.state == STATE_LEVELCLEAR:
+            self.draw_levelclear()
         elif self.state == STATE_GAMEOVER:
             self.draw_gameover()
         pygame.display.flip()
@@ -364,7 +394,12 @@ class Game:
             self._mini_tank(ix + col * 21, iy + row * 22, 15,
                             c.ENEMY_COLOR, c.ENEMY_TRACK)
 
-        # --- Подсказки ---
+        # --- Уровень и подсказки ---
+        lvl = self.small.render(
+            f"Уровень {self.level_index + 1}/{levels.level_count()}",
+            True, c.HUD_TEXT)
+        self.screen.blit(lvl, (x + 14, c.HEIGHT - 76))
+
         hints = ["P — пауза", "Esc — в меню"]
         y = c.HEIGHT - 50
         for line in hints:
@@ -404,13 +439,12 @@ class Game:
         dim.fill((10, 10, 14, 210))
         self.screen.blit(dim, (0, 0))
         cx = c.FIELD_W // 2
-        big = pygame.font.SysFont("Helvetica", 44, bold=True)
 
         if self.result == "win":
             text, color = "ПОБЕДА!", c.PLAYER_COLOR
         else:
             text, color = "ПОРАЖЕНИЕ", c.ACCENT
-        t = big.render(text, True, color)
+        t = self.big.render(text, True, color)
         self.screen.blit(t, (cx - t.get_width() // 2, c.FIELD_H // 2 - 80))
 
         score = self.font.render(f"Очки: {self.score}", True, c.TEXT_COLOR)
@@ -419,6 +453,25 @@ class Game:
         for i, line in enumerate(["R — играть заново", "Esc — в меню"]):
             s = self.small.render(line, True, (170, 170, 170))
             self.screen.blit(s, (cx - s.get_width() // 2, c.FIELD_H // 2 + 30 + i * 24))
+
+    def draw_levelclear(self):
+        dim = pygame.Surface((c.FIELD_W, c.FIELD_H), pygame.SRCALPHA)
+        dim.fill((10, 10, 14, 210))
+        self.screen.blit(dim, (0, 0))
+        cx = c.FIELD_W // 2
+
+        t = self.big2.render("УРОВЕНЬ ПРОЙДЕН", True, c.PLAYER_COLOR)
+        self.screen.blit(t, (cx - t.get_width() // 2, c.FIELD_H // 2 - 90))
+
+        stage = self.font.render(
+            f"{self.level_index + 1} / {levels.level_count()}", True, c.STEEL_COLOR)
+        self.screen.blit(stage, (cx - stage.get_width() // 2, c.FIELD_H // 2 - 34))
+
+        score = self.font.render(f"Очки: {self.score}", True, c.TEXT_COLOR)
+        self.screen.blit(score, (cx - score.get_width() // 2, c.FIELD_H // 2 + 2))
+
+        hint = self.small.render("Enter / Пробел — следующий уровень", True, (180, 180, 180))
+        self.screen.blit(hint, (cx - hint.get_width() // 2, c.FIELD_H // 2 + 44))
 
     def quit(self):
         pygame.quit()
@@ -435,6 +488,8 @@ class Game:
                     self.handle_pause_event(e)
                 elif self.state == STATE_CONTROLS:
                     self.handle_controls_event(e)
+                elif self.state == STATE_LEVELCLEAR:
+                    self.handle_levelclear_event(e)
                 elif self.state == STATE_GAMEOVER:
                     self.handle_gameover_event(e)
                 else:
@@ -474,6 +529,13 @@ class Game:
             self.state = STATE_PAUSED
         elif e.type == pygame.MOUSEBUTTONDOWN:
             self.state = STATE_PAUSED
+
+    def handle_levelclear_event(self, e):
+        if e.type == pygame.KEYDOWN:
+            if e.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                self.next_level()
+            elif e.key == pygame.K_ESCAPE:
+                self.back_to_menu()
 
     def handle_gameover_event(self, e):
         if e.type == pygame.KEYDOWN:
