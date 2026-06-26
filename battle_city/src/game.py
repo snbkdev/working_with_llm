@@ -16,6 +16,7 @@ from .entities.enemy import Enemy
 from .entities.explosion import Explosion
 from .entities.powerup import PowerUp
 from .entities.tank import Tank
+from . import storage
 from .menu import Menu
 from .sound import Sounds
 from .world import levels
@@ -55,6 +56,10 @@ class Game:
         self.big2 = pygame.font.SysFont("Helvetica", 40, bold=True)
         self.sounds = Sounds(c.SOUND_ENABLED)
 
+        # Рекорд из файла; new_record — побит ли он в текущей партии
+        self.highscore = storage.load_highscore()
+        self.new_record = False
+
         # Начинаем с главного меню; уровень создаётся при «Новой игре»
         self.state = STATE_MENU
         self.menu = Menu(MAIN_MENU_ITEMS, title="BATTLE CITY",
@@ -65,6 +70,7 @@ class Game:
         """Новая игра с первого уровня: сбрасываются очки и жизни."""
         self.lives = c.PLAYER_LIVES
         self.score = 0
+        self.new_record = False
         self.load_level(0)
 
     def load_level(self, index):
@@ -174,6 +180,11 @@ class Game:
         if self.state != STATE_PLAYING:
             return
         self.result = result
+        # Новый рекорд? Сохраняем на диск
+        if self.score > self.highscore:
+            self.highscore = self.score
+            self.new_record = True
+            storage.save_highscore(self.highscore)
         self.sounds.engine_stop()
         self.state = STATE_GAMEOVER
 
@@ -380,6 +391,9 @@ class Game:
     def draw(self):
         if self.state == STATE_MENU:
             self.menu.draw(self.screen)
+            rec = self.font.render(
+                f"РЕКОРД   {self.highscore:05d}", True, c.BASE_COLOR)
+            self.screen.blit(rec, (c.WIDTH // 2 - rec.get_width() // 2, 36))
             pygame.display.flip()
             return
 
@@ -451,13 +465,19 @@ class Game:
         title = self.font.render("BATTLE CITY", True, c.HUD_TEXT)
         self.screen.blit(title, (x + (c.HUD_W - title.get_width()) // 2, 18))
 
-        # --- Очки ---
+        # --- Очки и рекорд ---
         slbl = self.small.render("ОЧКИ", True, c.HUD_TEXT)
-        self.screen.blit(slbl, (x + 14, 48))
+        self.screen.blit(slbl, (x + 14, 44))
         snum = self.font.render(str(self.score), True, (40, 60, 90))
-        self.screen.blit(snum, (x + c.HUD_W - 14 - snum.get_width(), 44))
+        self.screen.blit(snum, (x + c.HUD_W - 14 - snum.get_width(), 40))
+        # Рекорд растёт «вживую», как только очки его превышают
+        rec = max(self.score, self.highscore)
+        rlbl = self.small.render("РЕКОРД", True, c.HUD_TEXT)
+        self.screen.blit(rlbl, (x + 14, 64))
+        rnum = self.small.render(f"{rec:05d}", True, (110, 90, 30))
+        self.screen.blit(rnum, (x + c.HUD_W - 14 - rnum.get_width(), 64))
         pygame.draw.line(self.screen, (70, 70, 70),
-                         (x + 12, 74), (x + c.HUD_W - 12, 74), 1)
+                         (x + 12, 84), (x + c.HUD_W - 12, 84), 1)
 
         # --- Жизни игрока ---
         lbl = self.small.render("ЖИЗНИ", True, c.HUD_TEXT)
@@ -547,11 +567,17 @@ class Game:
         self.screen.blit(t, (cx - t.get_width() // 2, c.FIELD_H // 2 - 80))
 
         score = self.font.render(f"Очки: {self.score}", True, c.TEXT_COLOR)
-        self.screen.blit(score, (cx - score.get_width() // 2, c.FIELD_H // 2 - 16))
+        self.screen.blit(score, (cx - score.get_width() // 2, c.FIELD_H // 2 - 22))
+
+        if self.new_record:
+            nr = self.font.render("НОВЫЙ РЕКОРД!", True, c.BASE_COLOR)
+        else:
+            nr = self.small.render(f"Рекорд: {self.highscore}", True, c.STEEL_COLOR)
+        self.screen.blit(nr, (cx - nr.get_width() // 2, c.FIELD_H // 2 + 8))
 
         for i, line in enumerate(["R — играть заново", "Esc — в меню"]):
             s = self.small.render(line, True, (170, 170, 170))
-            self.screen.blit(s, (cx - s.get_width() // 2, c.FIELD_H // 2 + 30 + i * 24))
+            self.screen.blit(s, (cx - s.get_width() // 2, c.FIELD_H // 2 + 40 + i * 24))
 
     def draw_levelclear(self):
         dim = pygame.Surface((c.FIELD_W, c.FIELD_H), pygame.SRCALPHA)
