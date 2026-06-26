@@ -34,6 +34,16 @@ ENEMY_SPAWN_INTERVAL = 2500    # мс между появлениями
 ENEMY_SHOOT_CHANCE = 0.012     # вероятность выстрела за кадр
 ENEMY_TURN_CHANCE = 0.02       # вероятность смены направления за кадр
 ENEMY_SCORE = 100              # очков за уничтоженного врага
+BONUS_ENEMY_CHANCE = 0.25      # доля врагов-носителей бонуса (мигают)
+
+# --- Бонусы (power-ups) ---
+POWERUP_KINDS = ("star", "helmet", "grenade", "shovel")
+POWERUP_LIFETIME = 12000       # сколько висит на поле, если не подобрали (мс)
+POWERUP_BLINK_MS = 350         # период мигания иконки на поле
+POWERUP_SCORE = 200            # очков за подбор
+PLAYER_MAX_LEVEL = 3           # уровней апгрейда танка от звезды (0..3)
+HELMET_DURATION = 8000         # неуязвимость от каски (мс)
+SHOVEL_DURATION = 12000        # укреплённая база от лопаты (мс)
 
 # --- Звук ---
 SOUND_ENABLED = True
@@ -77,6 +87,15 @@ EXPLOSION_SMOKE = (110, 92, 80)
 BASE_COLOR = (224, 196, 64)
 BASE_DARK = (90, 78, 28)
 BASE_GROUND = (60, 60, 60)
+
+# Бонусы: рамка-подложка и иконки
+POWERUP_BG = (38, 40, 48)
+POWERUP_FRAME = (236, 236, 236)
+STAR_COLOR = (245, 210, 70)
+HELMET_COLOR = (150, 205, 235)
+GRENADE_COLOR = (96, 100, 104)
+SHOVEL_COLOR = (205, 150, 72)
+SHIELD_COLOR = (120, 210, 240)
 
 TEXT_COLOR = (236, 236, 236)
 ACCENT = (220, 80, 60)

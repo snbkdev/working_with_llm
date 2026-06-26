@@ -17,6 +17,7 @@ class Tank:
         self.dir = direction
         self.is_player = is_player
         self.speed = c.PLAYER_SPEED if is_player else c.ENEMY_SPEED
+        self.level = 0          # апгрейд от звезды (только у игрока): 0..PLAYER_MAX_LEVEL
         self.alive = True
 
     @property

@@ -47,6 +47,15 @@ class Level:
                 elif ch == "A":
                     self.base_cell = (col, row)
 
+        # Клетки защитной рамки вокруг базы (для бонуса «лопата»)
+        bc, br = self.base_cell
+        self.base_wall = [
+            (bc + dx, br + dy)
+            for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+            if (dx, dy) != (0, 0)
+            and 0 <= bc + dx < c.COLS and 0 <= br + dy < c.ROWS
+        ]
+
     # --- Препятствия ---
     def solid_rects(self):
         """Прямоугольники, сквозь которые нельзя проехать."""
@@ -62,9 +71,21 @@ class Level:
     def cell_at(self, px, py):
         return (px // c.TILE, py // c.TILE)
 
-    def hit(self, rect):
+    def set_base_walls(self, material):
+        """Материал защитной рамки базы: 'steel' (лопата) или 'brick' (возврат).
+
+        Заполняет все клетки рамки целиком — даже разрушенные, так что лопата
+        ещё и восстанавливает пробитую стену.
+        """
+        for cell in self.base_wall:
+            self.bricks.discard(cell)
+            self.steels.discard(cell)
+            (self.steels if material == "steel" else self.bricks).add(cell)
+
+    def hit(self, rect, pierce_steel=False):
         """Реакция на попадание пули в прямоугольник rect.
 
+        pierce_steel — пуля прокачанного танка разрушает сталь.
         Возвращает: 'brick' (кирпич разрушен), 'steel' (сталь, пуля гаснет),
         'base' (база разрушена) или None (попадания нет).
         """
@@ -75,6 +96,8 @@ class Level:
         # Сталь
         for cell in list(self.steels):
             if rect.colliderect(tile_rect(*cell)):
+                if pierce_steel:
+                    self.steels.discard(cell)
                 return "steel"
         # Кирпич
         for cell in list(self.bricks):

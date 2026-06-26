@@ -60,7 +60,8 @@ class Sounds:
 
     def __init__(self, enabled=True):
         self.enabled = enabled
-        self.shoot = self.hit = self.engine = None
+        self.shoot = self.hit = self.engine = self.pickup = None
+        self.explosion = None
         self.engine_channel = None
         if not enabled:
             return
@@ -69,6 +70,9 @@ class Sounds:
             pygame.mixer.init(frequency=SAMPLE_RATE, size=-16, channels=1)
             self.shoot = _tone(900, 300, 0.12, volume=0.35, noise=0.3)
             self.hit = _tone(1200, 500, 0.07, volume=0.30, noise=0.5)
+            self.pickup = _tone(500, 1150, 0.20, volume=0.32)  # восходящий «динь»
+            # Взрыв танка/базы: низкий раскатистый «бум» с сильным шумом
+            self.explosion = _tone(320, 45, 0.34, volume=0.5, fade=0.02, noise=0.75)
             self.engine = _engine_loop()
         except pygame.error:
             self.enabled = False
@@ -80,6 +84,14 @@ class Sounds:
     def play_hit(self):
         if self.enabled and self.hit:
             self.hit.play()
+
+    def play_pickup(self):
+        if self.enabled and self.pickup:
+            self.pickup.play()
+
+    def play_explosion(self):
+        if self.enabled and self.explosion:
+            self.explosion.play()
 
     # --- Двигатель (зацикленный, пока танк едет) ---
     def engine_start(self):

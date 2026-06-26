@@ -5,6 +5,7 @@
 врагов = победа. Состояния: меню, игра, пауза, управление, финал.
 """
 
+import math
 import random
 import sys
 
@@ -13,6 +14,7 @@ import pygame
 from . import config as c
 from .entities.enemy import Enemy
 from .entities.explosion import Explosion
+from .entities.powerup import PowerUp
 from .entities.tank import Tank
 from .menu import Menu
 from .sound import Sounds
@@ -76,6 +78,8 @@ class Game:
         self.player = Tank(col, row, c.UP, is_player=True)
         self.bullets = []
         self.explosions = []
+        self.powerups = []
+        self.shovel_until = None      # пока активна укреплённая база (лопата)
         self.last_shot = 0
         self.result = None
         # Кратковременная неуязвимость на старте
@@ -112,6 +116,45 @@ class Game:
     # --- Бой и исходы ---
     def spawn_explosion(self, pos, big=True):
         self.explosions.append(Explosion(pos[0], pos[1], big))
+
+    # --- Бонусы (power-ups) ---
+    def spawn_powerup(self):
+        """Роняет случайный бонус на свободную клетку поля."""
+        kind = random.choice(c.POWERUP_KINDS)
+        for _ in range(40):
+            col = random.randint(0, c.COLS - 1)
+            row = random.randint(0, c.ROWS - 1)
+            if (col, row) in self.level.bricks or (col, row) in self.level.steels:
+                continue
+            if (col, row) == self.level.base_cell:
+                continue
+            cell = pygame.Rect(col * c.TILE, row * c.TILE, c.TILE, c.TILE)
+            if cell.colliderect(self.player.rect):
+                continue
+            if any(cell.colliderect(e.rect) for e in self.enemies):
+                continue
+            self.powerups.append(PowerUp(col, row, kind))
+            return
+
+    def apply_powerup(self, kind):
+        now = pygame.time.get_ticks()
+        if kind == "star":
+            self.player.level = min(self.player.level + 1, c.PLAYER_MAX_LEVEL)
+        elif kind == "helmet":
+            self.player_invuln_until = now + c.HELMET_DURATION
+        elif kind == "grenade":
+            killed = False
+            for e in self.enemies:
+                if e.alive:
+                    self.spawn_explosion(e.rect.center, big=True)
+                    e.alive = False
+                    self.score += c.ENEMY_SCORE
+                    killed = True
+            if killed:
+                self.sounds.play_explosion()
+        elif kind == "shovel":
+            self.level.set_base_walls("steel")
+            self.shovel_until = now + c.SHOVEL_DURATION
 
     def respawn_player(self):
         col, row = self.level.player_spawn
@@ -156,9 +199,15 @@ class Game:
         now = pygame.time.get_ticks()
         if now - self.last_shot < c.PLAYER_SHOOT_COOLDOWN:
             return
-        if len(self.player_bullets()) >= c.PLAYER_MAX_BULLETS:
+        lvl = self.player.level
+        max_bullets = 2 if lvl >= 2 else c.PLAYER_MAX_BULLETS   # звезда: 2 пули
+        if len(self.player_bullets()) >= max_bullets:
             return
-        self.bullets.append(self.player.shoot())
+        b = self.player.shoot()
+        if lvl >= 1:
+            b.speed = c.BULLET_SPEED + 3        # звезда: пуля быстрее
+        b.power = lvl >= 3                       # звезда: пробивает сталь
+        self.bullets.append(b)
         self.sounds.play_shoot()
         self.last_shot = now
 
@@ -178,7 +227,8 @@ class Game:
         n = len(spawns)
         for k in range(n):
             cell = spawns[(self.spawn_index + k) % n]
-            enemy = Enemy(*cell)
+            bonus = random.random() < c.BONUS_ENEMY_CHANCE
+            enemy = Enemy(*cell, bonus=bonus)
             if not any(enemy.rect.colliderect(o) for o in occupied):
                 self.enemies.append(enemy)
                 self.enemies_to_spawn -= 1
@@ -233,6 +283,19 @@ class Game:
         else:
             self.sounds.engine_stop()
 
+        # Подбор бонусов наездом
+        for p in self.powerups:
+            if p.alive and self.player.rect.colliderect(p.rect):
+                self.apply_powerup(p.kind)
+                p.alive = False
+                self.score += c.POWERUP_SCORE
+                self.sounds.play_pickup()
+
+        # Истечение укреплённой базы (лопата)
+        if self.shovel_until is not None and now >= self.shovel_until:
+            self.level.set_base_walls("brick")
+            self.shovel_until = None
+
         # Враги (ИИ)
         for e in self.enemies:
             blockers = [o.rect for o in self.enemies if o is not e]
@@ -247,14 +310,17 @@ class Game:
             if not (0 <= b.x <= c.FIELD_W and 0 <= b.y <= c.FIELD_H):
                 b.alive = False
                 continue
-            # Попадание в стену/базу
-            res = self.level.hit(b.rect)
+            # Попадание в стену/базу (прокачанная пуля игрока пробивает сталь)
+            res = self.level.hit(b.rect, pierce_steel=(b.owner == "player" and b.power))
             if res:
                 b.alive = False
-                self.sounds.play_hit()
-                self.spawn_explosion(b.rect.center, big=(res == "base"))
                 if res == "base":
+                    self.spawn_explosion(b.rect.center, big=True)
+                    self.sounds.play_explosion()
                     self.game_over("lose")
+                else:
+                    self.spawn_explosion(b.rect.center, big=False)
+                    self.sounds.play_hit()
                 continue
             # Попадание в танк
             self._bullet_vs_tanks(b, now)
@@ -262,14 +328,17 @@ class Game:
         # Взаимное уничтожение встречных пуль
         self._bullets_cancel()
 
-        # Взрывы: гаснут по истечении анимации
+        # Взрывы гаснут по истечении анимации, бонусы — по таймауту
         for ex in self.explosions:
             ex.update(now)
+        for p in self.powerups:
+            p.update(now)
 
-        # Убираем уничтоженных врагов, погасшие пули и отыгравшие взрывы
+        # Убираем уничтоженных врагов, погасшие пули, взрывы и бонусы
         self.enemies = [e for e in self.enemies if e.alive]
         self.bullets = [b for b in self.bullets if b.alive]
         self.explosions = [ex for ex in self.explosions if ex.alive]
+        self.powerups = [p for p in self.powerups if p.alive]
 
         # Уровень зачищен: все враги уничтожены и больше не появятся
         if self.enemies_to_spawn == 0 and not self.enemies:
@@ -282,16 +351,20 @@ class Game:
                     e.alive = False
                     b.alive = False
                     self.score += c.ENEMY_SCORE
-                    self.sounds.play_hit()
                     self.spawn_explosion(e.rect.center, big=True)
+                    self.sounds.play_explosion()
+                    if e.bonus:
+                        self.spawn_powerup()
                     return
         else:  # пуля врага
             if b.rect.colliderect(self.player.rect):
                 b.alive = False
-                self.sounds.play_hit()
                 if now >= self.player_invuln_until:
                     self.spawn_explosion(self.player.rect.center, big=True)
+                    self.sounds.play_explosion()
                     self.player_hit()
+                else:
+                    self.sounds.play_hit()      # щит поглотил пулю — лёгкий «тик»
 
     def _bullets_cancel(self):
         pb = [b for b in self.bullets if b.alive and b.owner == "player"]
@@ -326,19 +399,27 @@ class Game:
         pygame.draw.rect(self.screen, c.FIELD_COLOR, (0, 0, c.FIELD_W, c.FIELD_H))
         self.draw_grid()
         self.level.draw(self.screen)
-        # Игрок: мигает, пока действует неуязвимость
         now = pygame.time.get_ticks()
-        invuln = now < self.player_invuln_until
-        if not invuln or (now // 120) % 2 == 0:
-            self.player.draw(self.screen)
+        for p in self.powerups:
+            p.draw(self.screen)
+        self.player.draw(self.screen)
+        if now < self.player_invuln_until:          # щит: респаун или каска
+            self._draw_shield(self.player.rect, now)
         for e in self.enemies:
             e.draw(self.screen)
+            if e.bonus and (now // 250) % 2 == 0:    # носитель бонуса мигает рамкой
+                pygame.draw.rect(self.screen, c.STAR_COLOR, e.rect, 2, border_radius=5)
         for b in self.bullets:
             b.draw(self.screen)
         for ex in self.explosions:
             ex.draw(self.screen)
         pygame.draw.rect(self.screen, c.FIELD_BORDER, (0, 0, c.FIELD_W, c.FIELD_H), 2)
         self.draw_hud()
+
+    def _draw_shield(self, rect, now):
+        """Пульсирующее кольцо-щит вокруг танка (неуязвимость)."""
+        radius = rect.width // 2 + 4 + (now // 80) % 3
+        pygame.draw.circle(self.screen, c.SHIELD_COLOR, rect.center, radius, 2)
 
     def draw_grid(self):
         for x in range(c.TILE, c.FIELD_W, c.TILE):
@@ -353,6 +434,15 @@ class Game:
                          (x + 3, y + 2, size - 6, size - 4), border_radius=2)
         pygame.draw.rect(self.screen, track,
                          (x + size // 2 - 1, y - 2, 2, size // 2 + 2))
+
+    def _mini_star(self, cx, cy, r, color):
+        """Маленькая звезда для индикатора апгрейда танка."""
+        pts = []
+        for i in range(10):
+            rad = r if i % 2 == 0 else r * 0.42
+            ang = -math.pi / 2 + math.pi * i / 5
+            pts.append((cx + rad * math.cos(ang), cy + rad * math.sin(ang)))
+        pygame.draw.polygon(self.screen, color, pts)
 
     def draw_hud(self):
         x = c.FIELD_W
@@ -393,6 +483,15 @@ class Game:
             row = i // 6
             self._mini_tank(ix + col * 21, iy + row * 22, 15,
                             c.ENEMY_COLOR, c.ENEMY_TRACK)
+
+        # --- Апгрейд танка (звёзды) ---
+        tlbl = self.small.render("ТАНК", True, c.HUD_TEXT)
+        self.screen.blit(tlbl, (x + 14, c.HEIGHT - 102))
+        for i in range(c.PLAYER_MAX_LEVEL):
+            sx = x + 56 + i * 18
+            sy = c.HEIGHT - 96
+            color = c.STAR_COLOR if i < self.player.level else (90, 90, 90)
+            self._mini_star(sx, sy, 7, color)
 
         # --- Уровень и подсказки ---
         lvl = self.small.render(
