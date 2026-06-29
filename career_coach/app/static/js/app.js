@@ -5,6 +5,9 @@ const { createApp, nextTick } = Vue;
 createApp({
   data() {
     return {
+      // current user (loaded from /api/auth/me)
+      user: null,
+      ready: false,
       // meta (loaded from /api/meta)
       goal: "",
       commands: [],
@@ -47,6 +50,21 @@ createApp({
   },
 
   async mounted() {
+    // Auth guard: redirect to /login if no valid session.
+    try {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) {
+        window.location.href = "/login";
+        return;
+      }
+      this.user = await res.json();
+      this.xp = this.user.xp;
+      this.level = this.user.level;
+    } catch (e) {
+      window.location.href = "/login";
+      return;
+    }
+
     try {
       const res = await fetch("/api/meta");
       const data = await res.json();
@@ -55,12 +73,17 @@ createApp({
     } catch (e) {
       this.goal = "Стать Python-разработчиком";
     }
+    this.ready = true;
   },
 
   methods: {
     go(view) {
       this.view = view;
       if (view === "chat") this.scrollChat();
+    },
+    async logout() {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/";
     },
     async send() {
       const text = this.draft.trim();

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duckie — Вход</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="auth-body">
+  <div id="app">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+      </div>
+      <p class="auth-tagline">Твой путь в IT — учись и расти</p>
+
+      <div class="auth-tabs">
+        <button :class="{ active: mode === 'login' }" @click="setMode('login')">Вход</button>
+        <button :class="{ active: mode === 'register' }" @click="setMode('register')">Регистрация</button>
+      </div>
+
+      <form class="auth-form" @submit.prevent="submit">
+        <label v-if="mode === 'register'">
+          <span>Имя</span>
+          <input type="text" v-model="form.name" placeholder="Как к вам обращаться" required>
+        </label>
+        <label>
+          <span>Email</span>
+          <input type="email" v-model="form.email" placeholder="you@example.com" required>
+        </label>
+        <label>
+          <span>Пароль</span>
+          <input type="password" v-model="form.password" placeholder="Минимум 6 символов" required>
+        </label>
+
+        <p v-if="error" class="auth-error">{{ error }}</p>
+
+        <button type="submit" class="btn-primary auth-submit" :disabled="loading">
+          {{ loading ? 'Подождите…' : (mode === 'login' ? 'Войти' : 'Создать аккаунт') }}
+        </button>
+      </form>
+
+      <p class="auth-switch">
+        <template v-if="mode === 'login'">Нет аккаунта?
+          <a href="#" @click.prevent="setMode('register')">Зарегистрироваться</a>
+        </template>
+        <template v-else>Уже есть аккаунт?
+          <a href="#" @click.prevent="setMode('login')">Войти</a>
+        </template>
+      </p>
+    </div>
+  </div>
+
+  <script src="/static/js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duckie — обучение IT</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="landing-body">
+  <div id="app" v-cloak>
+    <header class="landing-nav">
+      <div class="brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+      </div>
+      <div class="landing-nav-actions">
+        <template v-if="authed">
+          <a class="btn-ghost" href="/app">Перейти к обучению</a>
+        </template>
+        <template v-else>
+          <a class="btn-ghost" href="/login">Войти</a>
+          <a class="btn-primary" href="/login">Регистрация</a>
+        </template>
+      </div>
+    </header>
+
+    <section class="hero">
+      <h1 class="hero-title">{{ tagline }}</h1>
+      <p class="hero-sub">
+        Образовательная платформа: уроки, тесты, код-челленджи, XP и уровни.
+        Выбери направление и начни прокачиваться уже сегодня.
+      </p>
+      <a class="btn-primary hero-cta" :href="authed ? '/app' : '/login'">
+        {{ authed ? 'Продолжить обучение' : 'Начать бесплатно' }}
+      </a>
+    </section>
+
+    <section class="categories">
+      <h2 class="categories-title">Направления</h2>
+      <div class="category-grid">
+        <a v-for="cat in categories" :key="cat.slug" class="category-card"
+           :style="{ '--cat-color': cat.color }" :href="authed ? '/app' : '/login'">
+          <span class="category-ico" :style="{ background: cat.color + '1f', color: cat.color }">{{ cat.icon }}</span>
+          <span class="category-name">{{ cat.title }}</span>
+          <span class="category-desc">{{ cat.desc }}</span>
+        </a>
+      </div>
+    </section>
+
+    <footer class="landing-footer">
+      🦆 Duckie — твой карьерный коуч в IT
+    </footer>
+  </div>
+
+  <script src="/static/js/landing.js"></script>
+</body>
+</html>

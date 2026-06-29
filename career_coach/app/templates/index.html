@@ -8,7 +8,7 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
 <body>
-  <div id="app">
+  <div id="app" v-cloak v-if="ready">
     <header class="topbar">
       <div class="brand">
         <span class="brand-logo">🦆</span>
@@ -22,7 +22,10 @@
           <div class="xp-bar"><div class="xp-fill" :style="{ width: xpPct + '%' }"></div></div>
           <span class="xp-text"><strong>{{ xpInLevel }}</strong> / 100 XP</span>
         </div>
-        <div class="profile" title="Профиль">🧑‍💻</div>
+        <div class="profile" :title="user ? user.name : 'Профиль'">
+          <span class="profile-ico">🧑‍💻</span>
+          <span v-if="user" class="profile-name">{{ user.name }}</span>
+        </div>
       </div>
     </header>
 
@@ -48,7 +51,7 @@
           <a class="nav-item" href="#" @click.prevent><span class="nav-ico">📝</span><span class="nav-label">Тест</span></a>
           <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🎓</span><span class="nav-label">Сертификаты</span></a>
           <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🗒️</span><span class="nav-label">Заметки по курсам</span></a>
-          <a class="nav-item nav-exit" href="#" @click.prevent><span class="nav-ico">🚪</span><span class="nav-label">Выход</span></a>
+          <a class="nav-item nav-exit" href="#" @click.prevent="logout"><span class="nav-ico">🚪</span><span class="nav-label">Выход</span></a>
         </nav>
       </aside>
 
