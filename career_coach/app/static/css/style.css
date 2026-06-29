@@ -40,11 +40,77 @@ body {
 .rank { display: flex; align-items: center; gap: 12px; font-size: 13px; }
 .xp-bar { width: 160px; height: 8px; background: var(--accent-soft); border-radius: 99px; overflow: hidden; }
 .xp-fill { height: 100%; background: var(--accent); transition: width .3s ease; }
+.profile-wrap { position: relative; }
 .profile { display: flex; align-items: center; gap: 8px; border: none; background: transparent; cursor: pointer; padding: 4px 8px; border-radius: 99px; transition: background .15s; }
 .profile:hover { background: var(--accent-soft); }
 .profile.active { background: var(--accent-soft); }
-.profile-ico { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-soft); display: grid; place-items: center; font-size: 18px; }
+.avatar-circle { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #6d4ae0, #a855f7); flex-shrink: 0; }
 .profile-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.profile-caret { font-size: 11px; color: var(--muted); }
+
+/* Avatar dropdown */
+.menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+.profile-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; min-width: 180px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(29,39,51,.14); padding: 6px; display: flex; flex-direction: column; }
+.profile-menu-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: none; background: transparent; border-radius: 8px; cursor: pointer; text-align: left; font-size: 14px; color: var(--text); text-decoration: none; }
+.profile-menu-item:hover { background: var(--accent-soft); }
+.profile-menu-item.danger { color: #d23f3f; }
+.profile-menu-item.danger:hover { background: #fdeaea; }
+
+/* Info form */
+.info-form { max-width: 520px; display: flex; flex-direction: column; gap: 16px; }
+.info-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.info-form input, .info-form textarea { padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; font-family: inherit; }
+.info-form input:focus, .info-form textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.info-form input:disabled { background: var(--bg); color: var(--muted); }
+.info-form textarea { resize: vertical; }
+.info-actions { display: flex; align-items: center; gap: 14px; }
+.info-saved { color: var(--ok); font-size: 14px; font-weight: 600; }
+
+/* Achievements */
+.achievements { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.achievement { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.achievement.locked { opacity: .55; }
+.achievement-ico { font-size: 24px; }
+.achievement-body { display: flex; flex-direction: column; }
+.achievement-title { font-weight: 600; font-size: 14px; }
+.achievement-desc { font-size: 12px; color: var(--muted); }
+
+/* Goal view */
+.goal-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.private-badge { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 4px 10px; border-radius: 99px; }
+.goal-hint { font-size: 13px; color: var(--muted); margin: -8px 0 12px; }
+
+@media (max-width: 860px) {
+  .achievements { grid-template-columns: 1fr 1fr; }
+}
+
+/* Admin page */
+.admin-body { background: var(--bg); }
+.admin-main { max-width: 1000px; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+.admin-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+.admin-block h2 { margin: 0 0 12px; font-size: 16px; }
+.admin-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.admin-error { color: #d23f3f; font-size: 13px; margin: 10px 0 0; }
+
+.admin-cat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.admin-cat-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-left: 10px; border-left: 4px solid var(--accent); }
+.admin-subs { margin: 12px 0 0 14px; display: flex; flex-direction: column; gap: 6px; }
+.admin-sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.admin-sub-new { margin-top: 4px; padding-top: 10px; border-top: 1px dashed var(--border); }
+
+.admin-main input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+.admin-main input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.i-icon { width: 52px; text-align: center; }
+.i-slug { width: 120px; font-family: ui-monospace, monospace; }
+.i-title { width: 160px; }
+.i-desc { flex: 1; min-width: 160px; }
+.i-color { width: 44px; height: 36px; padding: 2px; border-radius: 8px; }
+
+.btn-sm { padding: 8px 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--accent); }
+.btn-sm:hover { background: var(--accent-soft); }
+.btn-sm.danger { color: #d23f3f; }
+.btn-sm.danger:hover { background: #fdeaea; }
+.btn-sm:disabled { opacity: .5; cursor: default; }
 
 /* Goal card: choose-direction button */
 .goal-choose { margin-top: 12px; width: 100%; padding: 9px; border: none; border-radius: 10px; background: rgba(255,255,255,.95); color: var(--accent); font-weight: 600; cursor: pointer; }

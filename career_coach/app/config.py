@@ -14,30 +14,7 @@ load_dotenv(BASE_DIR / ".env")
 APP_NAME = "Duckie — Career Coach"
 TAGLINE = "Твой путь в IT — учись, проверяй знания, расти"
 GOAL = "Стать Python-разработчиком с доходом $100k+ к концу года"
-
-# IT-направления для публичной главной страницы.
-CATEGORIES = [
-    {"slug": "backend", "title": "Backend", "icon": "🛠️", "color": "#5d3fd3",
-     "desc": "Python, Java, Go, C#, PHP"},
-    {"slug": "databases", "title": "Базы данных", "icon": "🗄️", "color": "#0ea5e9",
-     "desc": "SQL, PostgreSQL, проектирование, оптимизация"},
-    {"slug": "frontend", "title": "Frontend", "icon": "🎨", "color": "#f59e0b",
-     "desc": "HTML, CSS, JavaScript, Vue, React"},
-    {"slug": "data-science", "title": "Data Science / ML", "icon": "📊", "color": "#10b981",
-     "desc": "Анализ данных, машинное обучение, нейросети"},
-    {"slug": "devops", "title": "DevOps", "icon": "⚙️", "color": "#ef4444",
-     "desc": "Docker, CI/CD, облака, инфраструктура"},
-    {"slug": "mobile", "title": "Мобильная разработка", "icon": "📱", "color": "#ec4899",
-     "desc": "iOS, Android, кроссплатформенные приложения"},
-    {"slug": "gamedev", "title": "GameDev", "icon": "🎮", "color": "#8b5cf6",
-     "desc": "Разработка игр: Unity, Unreal, игровая логика"},
-    {"slug": "ui-ux", "title": "UI/UX-дизайн", "icon": "🎯", "color": "#f43f5e",
-     "desc": "Проектирование интерфейсов, Figma, прототипы"},
-    {"slug": "3d-graphics", "title": "3D и графика", "icon": "🧊", "color": "#06b6d4",
-     "desc": "3D-моделирование, Blender, текстуры, рендеринг"},
-    {"slug": "qa", "title": "QA / Тестирование", "icon": "🧪", "color": "#22c55e",
-     "desc": "Ручное и автоматизированное тестирование"},
-]
+# Категории/подкатегории теперь хранятся в БД (см. app/models.py и app/seed.py).
 
 # --- Database / auth settings (overridable via .env) ---
 # Postgres.app default: current OS user, no password, localhost:5432.
@@ -53,6 +30,12 @@ COOKIE_NAME = "cc_session"
 
 # Base URL used to build links in emails (e.g. password reset).
 APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000")
+
+# Emails that always get admin rights. The very first registered user also
+# becomes admin automatically.
+ADMIN_EMAILS = {
+    e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()
+}
 
 
 def _parse_seconds(value: str, default: int) -> int:

@@ -14,6 +14,7 @@ createApp({
       // IT directions (loaded from /api/categories)
       categories: [],
       savingDirection: false,
+      savingPlanned: false,
       // gamification placeholders
       xp: 0,
       level: 0,
@@ -22,6 +23,11 @@ createApp({
       challengesSolved: 0,
       // navigation
       view: "dashboard",
+      menuOpen: false,
+      // personal info form
+      info: { full_name: "", birth_date: "", bio: "" },
+      savingInfo: false,
+      infoSaved: false,
       // chat
       messages: [
         {
@@ -59,6 +65,25 @@ createApp({
       // Personal goal derived from the chosen direction; null prompts a choice.
       const c = this.chosenCategory;
       return c ? `Освоить направление «${c.title}» и вырасти в IT` : null;
+    },
+    initials() {
+      const src = (this.user && (this.user.full_name || this.user.name)) || "";
+      const parts = src.trim().split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return "?";
+      if (parts.length === 1) return parts[0][0].toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    },
+    achievements() {
+      const u = this.user || {};
+      const planned = u.planned || [];
+      return [
+        { ico: "🐣", title: "Начало пути", desc: "Аккаунт создан", unlocked: true },
+        { ico: "🧭", title: "Направление выбрано", desc: "Выбрано, что учите сейчас", unlocked: !!u.direction },
+        { ico: "🗺️", title: "Есть план", desc: "Добавлено направление в план", unlocked: planned.length > 0 },
+        { ico: "⭐", title: "Первые XP", desc: "Набрано 10+ XP", unlocked: (u.xp || 0) >= 10 },
+        { ico: "🏅", title: "Уровень 1", desc: "Достигнут 1-й уровень", unlocked: (u.level || 0) >= 1 },
+        { ico: "📝", title: "О себе", desc: "Заполнена информация о себе", unlocked: !!u.bio },
+      ];
     },
   },
 
@@ -101,6 +126,67 @@ createApp({
     go(view) {
       this.view = view;
       if (view === "chat") this.scrollChat();
+    },
+    toggleMenu() {
+      this.menuOpen = !this.menuOpen;
+    },
+    openInfo() {
+      this.menuOpen = false;
+      this.infoSaved = false;
+      // Prefill form from the loaded user.
+      this.info.full_name = this.user.full_name || "";
+      this.info.birth_date = this.user.birth_date || "";
+      this.info.bio = this.user.bio || "";
+      this.view = "info";
+    },
+    openGoal() {
+      this.menuOpen = false;
+      this.view = "goal";
+    },
+    isPlanned(slug) {
+      return (this.user.planned || []).includes(slug);
+    },
+    async togglePlanned(slug) {
+      const current = this.user.planned || [];
+      const next = current.includes(slug)
+        ? current.filter((s) => s !== slug)
+        : [...current, slug];
+      this.savingPlanned = true;
+      try {
+        const res = await fetch("/api/auth/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ planned: next }),
+        });
+        if (res.ok) this.user = await res.json();
+      } catch (e) {
+        /* ignore */
+      } finally {
+        this.savingPlanned = false;
+      }
+    },
+    async saveInfo() {
+      this.savingInfo = true;
+      this.infoSaved = false;
+      try {
+        const res = await fetch("/api/auth/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            full_name: this.info.full_name || null,
+            birth_date: this.info.birth_date || null,
+            bio: this.info.bio || null,
+          }),
+        });
+        if (res.ok) {
+          this.user = await res.json();
+          this.infoSaved = true;
+        }
+      } catch (e) {
+        /* ignore */
+      } finally {
+        this.savingInfo = false;
+      }
     },
     async logout() {
       await fetch("/api/auth/logout", { method: "POST" });

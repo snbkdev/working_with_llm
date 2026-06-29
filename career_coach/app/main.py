@@ -15,8 +15,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .admin import router as admin_router
 from .auth import router as auth_router
-from .config import APP_NAME, CATEGORIES, GOAL, SLASH_COMMANDS, TAGLINE, get_system_prompt
+from .catalog import router as catalog_router
+from .config import APP_NAME, GOAL, SLASH_COMMANDS, get_system_prompt
 from .db import init_db
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -35,6 +37,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=APP_NAME, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.include_router(auth_router)
+app.include_router(catalog_router)
+app.include_router(admin_router)
 
 
 class ChatRequest(BaseModel):
@@ -69,16 +73,16 @@ async def reset_password_page() -> FileResponse:
     return FileResponse(TEMPLATES / "reset.html")
 
 
+@app.get("/admin")
+async def admin_page() -> FileResponse:
+    """Serve the admin catalog-management page (access checked client-side)."""
+    return FileResponse(TEMPLATES / "admin.html")
+
+
 @app.get("/api/meta")
 async def meta() -> dict:
     """App metadata for the frontend (name, goal, commands)."""
     return {"app_name": APP_NAME, "goal": GOAL, "commands": SLASH_COMMANDS}
-
-
-@app.get("/api/categories")
-async def categories() -> dict:
-    """IT directions shown on the public landing page."""
-    return {"tagline": TAGLINE, "categories": CATEGORIES}
 
 
 @app.get("/api/health")

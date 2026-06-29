@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duckie — Админка каталога</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="admin-body">
+  <div id="app" v-cloak v-if="ready">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+        <span class="brand-sub">Админка каталога</span>
+      </div>
+      <a class="btn-ghost" href="/app">← В портал</a>
+    </header>
+
+    <main class="admin-main">
+      <!-- New category -->
+      <section class="admin-block">
+        <h2>Новая категория</h2>
+        <div class="admin-row">
+          <input class="i-icon" v-model="newCat.icon" placeholder="🛠️" maxlength="4">
+          <input class="i-slug" v-model="newCat.slug" placeholder="slug (a-z, дефис)">
+          <input class="i-title" v-model="newCat.title" placeholder="Название">
+          <input type="color" class="i-color" v-model="newCat.color">
+          <input class="i-desc" v-model="newCat.description" placeholder="Описание">
+          <button class="btn-primary" @click="addCategory" :disabled="busy">Добавить</button>
+        </div>
+        <p v-if="error" class="admin-error">{{ error }}</p>
+      </section>
+
+      <!-- Categories list -->
+      <section v-for="cat in categories" :key="cat.id" class="admin-cat">
+        <div class="admin-cat-head" :style="{ borderColor: cat.color }">
+          <input class="i-icon" v-model="cat.icon" maxlength="4">
+          <input class="i-slug" v-model="cat.slug">
+          <input class="i-title" v-model="cat.title">
+          <input type="color" class="i-color" v-model="cat.color">
+          <input class="i-desc" v-model="cat.description" placeholder="Описание">
+          <button class="btn-sm" @click="saveCategory(cat)" :disabled="busy">Сохранить</button>
+          <button class="btn-sm danger" @click="deleteCategory(cat)" :disabled="busy">Удалить</button>
+        </div>
+
+        <div class="admin-subs">
+          <div v-for="sub in cat.subcategories" :key="sub.id" class="admin-sub">
+            <input class="i-slug" v-model="sub.slug">
+            <input class="i-title" v-model="sub.title">
+            <input class="i-desc" v-model="sub.description" placeholder="Описание">
+            <button class="btn-sm" @click="saveSub(sub)" :disabled="busy">Сохранить</button>
+            <button class="btn-sm danger" @click="deleteSub(sub)" :disabled="busy">✕</button>
+          </div>
+
+          <div class="admin-sub admin-sub-new">
+            <input class="i-slug" v-model="draftSub(cat.id).slug" placeholder="slug">
+            <input class="i-title" v-model="draftSub(cat.id).title" placeholder="Подкатегория">
+            <input class="i-desc" v-model="draftSub(cat.id).description" placeholder="Описание">
+            <button class="btn-sm" @click="addSub(cat)" :disabled="busy">+ Добавить</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>

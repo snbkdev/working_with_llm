@@ -22,14 +22,24 @@
           <div class="xp-bar"><div class="xp-fill" :style="{ width: xpPct + '%' }"></div></div>
           <span class="xp-text"><strong>{{ xpInLevel }}</strong> / 100 XP</span>
         </div>
-        <button class="profile" :class="{ active: view === 'profile' }"
-                :title="user ? user.name + ' — открыть профиль' : 'Профиль'"
-                @click="go('profile')">
-          <span class="profile-ico">🧑‍💻</span>
-          <span v-if="user" class="profile-name">{{ user.name }}</span>
-        </button>
+        <div class="profile-wrap">
+          <button class="profile" :class="{ active: menuOpen }"
+                  :title="user ? user.name : 'Профиль'" @click="toggleMenu">
+            <span class="avatar-circle">{{ initials }}</span>
+            <span v-if="user" class="profile-name">{{ user.name }}</span>
+            <span class="profile-caret">▾</span>
+          </button>
+          <div v-if="menuOpen" class="profile-menu">
+            <button class="profile-menu-item" @click="openInfo">ℹ️ Информация</button>
+            <button class="profile-menu-item" @click="openGoal">🎯 Цель</button>
+            <a v-if="user && user.is_admin" class="profile-menu-item" href="/admin">🛠️ Админка</a>
+            <button class="profile-menu-item danger" @click="logout">🚪 Выход</button>
+          </div>
+        </div>
       </div>
     </header>
+
+    <div v-if="menuOpen" class="menu-backdrop" @click="menuOpen = false"></div>
 
     <div class="layout">
       <aside class="sidebar">
@@ -42,7 +52,7 @@
           </template>
           <template v-else>
             <p class="goal-text">Выберите направление, которое хотите изучать</p>
-            <button class="goal-choose" @click="go('profile')">Выбрать направление</button>
+            <button class="goal-choose" @click="openGoal">Выбрать направление</button>
           </template>
         </div>
 
@@ -59,7 +69,6 @@
           <a class="nav-item" href="#" @click.prevent><span class="nav-ico">📝</span><span class="nav-label">Тест</span></a>
           <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🎓</span><span class="nav-label">Сертификаты</span></a>
           <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🗒️</span><span class="nav-label">Заметки по курсам</span></a>
-          <a class="nav-item nav-exit" href="#" @click.prevent="logout"><span class="nav-ico">🚪</span><span class="nav-label">Выход</span></a>
         </nav>
       </aside>
 
@@ -90,22 +99,62 @@
           </div>
         </section>
 
-        <!-- PROFILE -->
-        <section v-else-if="view === 'profile'" class="view">
-          <h1 class="view-title">Профиль</h1>
-          <p class="view-sub">{{ user.name }} · {{ user.email }}</p>
+        <!-- INFO -->
+        <section v-else-if="view === 'info'" class="view">
+          <h1 class="view-title">Информация</h1>
+          <p class="view-sub">Личные данные вашего профиля</p>
 
-          <div class="profile-goal" v-if="chosenCategory">
-            <span class="profile-goal-ico" :style="{ background: chosenCategory.color + '1f', color: chosenCategory.color }">{{ chosenCategory.icon }}</span>
-            <div>
-              <div class="profile-goal-title">Текущее направление: {{ chosenCategory.title }}</div>
-              <div class="profile-goal-sub">{{ goalText }}</div>
+          <form class="info-form" @submit.prevent="saveInfo">
+            <label>
+              <span>ФИО</span>
+              <input type="text" v-model="info.full_name" placeholder="Иванов Иван Иванович">
+            </label>
+            <label>
+              <span>Дата рождения</span>
+              <input type="date" v-model="info.birth_date">
+            </label>
+            <label>
+              <span>Почта</span>
+              <input type="email" :value="user.email" disabled>
+            </label>
+            <label>
+              <span>О себе</span>
+              <textarea v-model="info.bio" rows="4" placeholder="Коротко о себе, цели, опыт…"></textarea>
+            </label>
+
+            <div class="info-actions">
+              <button class="btn-primary" type="submit" :disabled="savingInfo">
+                {{ savingInfo ? 'Сохранение…' : 'Сохранить' }}
+              </button>
+              <span v-if="infoSaved" class="info-saved">✅ Сохранено</span>
+            </div>
+          </form>
+
+          <h2 class="section-title">Достижения</h2>
+          <div class="achievements">
+            <div v-for="a in achievements" :key="a.title" class="achievement"
+                 :class="{ locked: !a.unlocked }" :title="a.desc">
+              <span class="achievement-ico">{{ a.unlocked ? a.ico : '🔒' }}</span>
+              <span class="achievement-body">
+                <span class="achievement-title">{{ a.title }}</span>
+                <span class="achievement-desc">{{ a.desc }}</span>
+              </span>
             </div>
           </div>
+        </section>
 
-          <h2 class="section-title">Что хотите изучать?</h2>
+        <!-- GOAL (что учу сейчас + план) -->
+        <section v-else-if="view === 'goal'" class="view">
+          <div class="goal-head">
+            <h1 class="view-title">Цель</h1>
+            <span class="private-badge" title="Этот раздел виден только вам">🔒 Виден только вам</span>
+          </div>
+          <p class="view-sub">Отметьте, что изучаете сейчас и что планируете дальше.</p>
+
+          <h2 class="section-title">Что учу сейчас</h2>
+          <p class="goal-hint">Одно текущее направление.</p>
           <div class="direction-grid">
-            <button v-for="cat in categories" :key="cat.slug" class="direction-card"
+            <button v-for="cat in categories" :key="'now-' + cat.slug" class="direction-card"
                     :class="{ chosen: user.direction === cat.slug }"
                     :style="{ '--cat-color': cat.color }"
                     :disabled="savingDirection"
@@ -113,7 +162,22 @@
               <span class="direction-ico" :style="{ background: cat.color + '1f', color: cat.color }">{{ cat.icon }}</span>
               <span class="direction-name">{{ cat.title }}</span>
               <span class="direction-desc">{{ cat.desc }}</span>
-              <span v-if="user.direction === cat.slug" class="direction-check">✓ Выбрано</span>
+              <span v-if="user.direction === cat.slug" class="direction-check">✓ Учу сейчас</span>
+            </button>
+          </div>
+
+          <h2 class="section-title">Хочу изучить по плану</h2>
+          <p class="goal-hint">Можно выбрать несколько направлений.</p>
+          <div class="direction-grid">
+            <button v-for="cat in categories" :key="'plan-' + cat.slug" class="direction-card"
+                    :class="{ chosen: isPlanned(cat.slug) }"
+                    :style="{ '--cat-color': cat.color }"
+                    :disabled="savingPlanned"
+                    @click="togglePlanned(cat.slug)">
+              <span class="direction-ico" :style="{ background: cat.color + '1f', color: cat.color }">{{ cat.icon }}</span>
+              <span class="direction-name">{{ cat.title }}</span>
+              <span class="direction-desc">{{ cat.desc }}</span>
+              <span v-if="isPlanned(cat.slug)" class="direction-check">✓ В плане</span>
             </button>
           </div>
         </section>

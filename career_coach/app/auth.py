@@ -1,13 +1,15 @@
 """Authentication routes: register, login, logout, current user."""
+from datetime import date
+
 from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import mailer
-from .config import ACCESS_TOKEN_EXPIRE_MINUTES, APP_BASE_URL, CATEGORIES, COOKIE_NAME
+from .config import ACCESS_TOKEN_EXPIRE_MINUTES, ADMIN_EMAILS, APP_BASE_URL, COOKIE_NAME
 from .db import get_session
-from .models import User
+from .models import Category, User
 from .security import (
     create_access_token,
     create_reset_token,
@@ -46,14 +48,25 @@ class UserOut(BaseModel):
     email: EmailStr
     xp: int
     level: int
+    is_admin: bool = False
     direction: str | None = None
+    planned: list[str] = []
+    full_name: str | None = None
+    birth_date: date | None = None
+    bio: str | None = None
 
 
 class ProfilePayload(BaseModel):
-    direction: str
+    direction: str | None = None
+    planned: list[str] | None = None
+    full_name: str | None = Field(default=None, max_length=200)
+    birth_date: date | None = None
+    bio: str | None = Field(default=None, max_length=2000)
 
 
-_VALID_DIRECTIONS = {c["slug"] for c in CATEGORIES}
+async def _valid_direction_slugs(db: AsyncSession) -> set[str]:
+    rows = await db.scalars(select(Category.slug))
+    return set(rows.all())
 
 
 def _set_session_cookie(response: Response, user_id: int) -> None:
@@ -84,6 +97,13 @@ async def get_current_user(
     return user
 
 
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Dependency: allow only admin users."""
+    if not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Требуются права администратора")
+    return user
+
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: RegisterPayload,
@@ -94,10 +114,14 @@ async def register(
     existing = await db.scalar(select(User).where(User.email == payload.email))
     if existing:
         raise HTTPException(status.HTTP_409_CONFLICT, "Email уже зарегистрирован")
+    # First user, or an email listed in ADMIN_EMAILS, becomes an admin.
+    user_count = await db.scalar(select(func.count()).select_from(User))
+    is_admin = user_count == 0 or payload.email.lower() in ADMIN_EMAILS
     user = User(
         name=payload.name,
         email=payload.email,
         password_hash=hash_password(payload.password),
+        is_admin=is_admin,
     )
     db.add(user)
     await db.commit()
@@ -178,10 +202,32 @@ async def update_profile(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ) -> User:
-    """Set the user's chosen learning direction."""
-    if payload.direction not in _VALID_DIRECTIONS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Неизвестное направление")
-    user.direction = payload.direction
+    """Update profile fields (learning direction and/or personal info).
+
+    Only the fields present in the request are changed.
+    """
+    fields = payload.model_dump(exclude_unset=True)
+    valid = None
+    if "direction" in fields or "planned" in fields:
+        valid = await _valid_direction_slugs(db)
+
+    if "direction" in fields:
+        if fields["direction"] not in valid:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Неизвестное направление")
+        user.direction = fields["direction"]
+    if "planned" in fields:
+        planned = fields["planned"] or []
+        if any(slug not in valid for slug in planned):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Неизвестное направление в плане")
+        # dedupe, preserve order
+        user.planned = list(dict.fromkeys(planned))
+    if "full_name" in fields:
+        user.full_name = fields["full_name"]
+    if "birth_date" in fields:
+        user.birth_date = fields["birth_date"]
+    if "bio" in fields:
+        user.bio = fields["bio"]
+
     await db.commit()
     await db.refresh(user)
     return user
