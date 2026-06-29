@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duckie — Career Coach</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+        <span class="brand-sub">Career Coach</span>
+      </div>
+      <div class="topbar-right">
+        <div class="streak" title="Дни подряд">🔥 <strong>{{ streak }}</strong></div>
+        <div class="rank">
+          <span class="rank-level">Level <strong>{{ level }}</strong></span>
+          <div class="xp-bar"><div class="xp-fill" :style="{ width: xpPct + '%' }"></div></div>
+          <span class="xp-text"><strong>{{ xpInLevel }}</strong> / 100 XP</span>
+        </div>
+        <div class="profile" title="Профиль">🧑‍💻</div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="goal-card">
+          <span class="goal-label">Моя цель</span>
+          <p class="goal-text">{{ goal }}</p>
+          <div class="goal-progress"><div class="goal-fill" :style="{ width: goalPct + '%' }"></div></div>
+          <span class="goal-pct">{{ goalPct }}% пути пройдено</span>
+        </div>
+
+        <h2 class="sidebar-title">Навигация</h2>
+        <nav class="nav">
+          <button class="nav-item" :class="{ active: view === 'dashboard' }" @click="go('dashboard')">
+            <span class="nav-ico">🏠</span><span class="nav-label">Дашборд</span>
+          </button>
+        </nav>
+
+        <nav class="nav nav-bottom">
+          <a class="nav-item" href="#" @click.prevent><span class="nav-ico">📚</span><span class="nav-label">Уроки</span></a>
+          <a class="nav-item" href="#" @click.prevent><span class="nav-ico">✅</span><span class="nav-label">Пройденные уроки</span></a>
+          <a class="nav-item" href="#" @click.prevent><span class="nav-ico">📝</span><span class="nav-label">Тест</span></a>
+          <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🎓</span><span class="nav-label">Сертификаты</span></a>
+          <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🗒️</span><span class="nav-label">Заметки по курсам</span></a>
+          <a class="nav-item nav-exit" href="#" @click.prevent><span class="nav-ico">🚪</span><span class="nav-label">Выход</span></a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <!-- DASHBOARD -->
+        <section v-if="view === 'dashboard'" class="view">
+          <h1 class="view-title">Дашборд</h1>
+          <p class="view-sub">Привет! Я Duckie — твой карьерный коуч. Вот твой прогресс.</p>
+
+          <div class="cards">
+            <div class="card"><span class="card-ico">⭐</span><span class="card-num">{{ xp }}</span><span class="card-cap">всего XP</span></div>
+            <div class="card"><span class="card-ico">🏆</span><span class="card-num">{{ level }} / 50</span><span class="card-cap">уровень</span></div>
+            <div class="card"><span class="card-ico">📚</span><span class="card-num">{{ topicsLearned }}</span><span class="card-cap">тем изучено</span></div>
+            <div class="card"><span class="card-ico">✅</span><span class="card-num">{{ challengesSolved }}</span><span class="card-cap">челленджей решено</span></div>
+          </div>
+
+          <h2 class="section-title">Продолжить обучение</h2>
+          <div class="lesson-list">
+            <a v-for="lesson in featured" :key="lesson.command" class="lesson"
+               href="#" @click.prevent>
+              <span class="lesson-ico">{{ lesson.ico }}</span>
+              <span class="lesson-body">
+                <span class="lesson-name">{{ lesson.name }}</span>
+                <span class="lesson-desc">{{ lesson.desc }}</span>
+              </span>
+              <span class="lesson-go">→</span>
+            </a>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
