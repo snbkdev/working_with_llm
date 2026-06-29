@@ -48,7 +48,30 @@ DATABASE_URL = os.getenv(
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 days
+RESET_TOKEN_EXPIRE_MINUTES = int(os.getenv("RESET_TOKEN_EXPIRE_MINUTES", "30"))
 COOKIE_NAME = "cc_session"
+
+# Base URL used to build links in emails (e.g. password reset).
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000")
+
+
+def _parse_seconds(value: str, default: int) -> int:
+    """Parse '30s' / '30' into seconds."""
+    value = (value or "").strip().lower().rstrip("s")
+    return int(value) if value.isdigit() else default
+
+
+# --- SMTP / email settings (from .env) ---
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USERNAME)
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", APP_NAME)
+SMTP_TLS_POLICY = os.getenv("SMTP_TLS_POLICY", "starttls").lower()  # starttls | ssl | none
+SMTP_TIMEOUT = _parse_seconds(os.getenv("SMTP_TIMEOUT", "30"), 30)
+# Master switch: emails are sent only when SMTP is configured.
+EMAIL_ENABLED = bool(SMTP_HOST and SMTP_USERNAME and SMTP_PASSWORD)
 
 
 @lru_cache

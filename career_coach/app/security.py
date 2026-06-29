@@ -4,7 +4,12 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from jose import JWTError, jwt
 
-from .config import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_ALGORITHM, SECRET_KEY
+from .config import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    JWT_ALGORITHM,
+    RESET_TOKEN_EXPIRE_MINUTES,
+    SECRET_KEY,
+)
 
 # bcrypt hashes at most 72 bytes of the password.
 _BCRYPT_MAX_BYTES = 72
@@ -23,16 +28,35 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(subject: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": subject, "exp": expire}
+def _create_token(subject: str, token_type: str, expire_minutes: int) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
+    payload = {"sub": subject, "typ": token_type, "exp": expire}
     return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> str | None:
-    """Return the subject (user id) if the token is valid, else None."""
+def _decode_token(token: str, expected_type: str) -> str | None:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        return payload.get("sub")
     except JWTError:
         return None
+    if payload.get("typ") != expected_type:
+        return None
+    return payload.get("sub")
+
+
+def create_access_token(subject: str) -> str:
+    return _create_token(subject, "access", ACCESS_TOKEN_EXPIRE_MINUTES)
+
+
+def decode_access_token(token: str) -> str | None:
+    """Return the subject (user id) if the access token is valid, else None."""
+    return _decode_token(token, "access")
+
+
+def create_reset_token(subject: str) -> str:
+    return _create_token(subject, "reset", RESET_TOKEN_EXPIRE_MINUTES)
+
+
+def decode_reset_token(token: str) -> str | None:
+    """Return the subject (user id) if the reset token is valid, else None."""
+    return _decode_token(token, "reset")

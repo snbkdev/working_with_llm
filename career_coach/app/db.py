@@ -27,7 +27,13 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db() -> None:
     """Create tables from model metadata (no migrations yet)."""
     # Import models so they register on Base.metadata before create_all.
+    from sqlalchemy import text
+
     from . import models  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Lightweight column migrations for already-existing tables (no Alembic yet).
+        await conn.execute(
+            text("ALTER TABLE users ADD COLUMN IF NOT EXISTS direction VARCHAR(50)")
+        )

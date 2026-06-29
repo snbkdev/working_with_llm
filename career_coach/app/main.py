@@ -4,8 +4,11 @@ Frontend is a Vue 3 SPA (CDN build) served as static pages; data comes from
 the JSON API below. Auth uses Postgres + JWT session cookie. No LLM provider
 is wired up yet: /api/chat returns a stub.
 """
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+logging.getLogger("duckie").setLevel(logging.INFO)
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
@@ -22,6 +25,9 @@ TEMPLATES = BASE_DIR / "templates"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Route our "duckie" logs through uvicorn's handlers so they appear in console.
+    duckie_logger = logging.getLogger("duckie")
+    duckie_logger.handlers = logging.getLogger("uvicorn").handlers or duckie_logger.handlers
     await init_db()
     yield
 
@@ -55,6 +61,12 @@ async def portal() -> FileResponse:
 async def login_page() -> FileResponse:
     """Serve the registration / login page."""
     return FileResponse(TEMPLATES / "auth.html")
+
+
+@app.get("/reset-password")
+async def reset_password_page() -> FileResponse:
+    """Serve the password-reset page (token read from the query string)."""
+    return FileResponse(TEMPLATES / "reset.html")
 
 
 @app.get("/api/meta")

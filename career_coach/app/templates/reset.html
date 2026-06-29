@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duckie — Новый пароль</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="auth-body">
+  <div id="app" v-cloak>
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+      </div>
+      <p class="auth-tagline">Сброс пароля</p>
+
+      <div v-if="!token" class="auth-sent">
+        <p class="auth-error">Ссылка некорректна — токен отсутствует.</p>
+        <p class="auth-switch"><a href="/login">Ко входу</a></p>
+      </div>
+
+      <div v-else-if="done" class="auth-sent">
+        <p>✅ Пароль обновлён. Теперь можно войти с новым паролем.</p>
+        <p class="auth-switch"><a href="/login">Перейти ко входу</a></p>
+      </div>
+
+      <form v-else class="auth-form" @submit.prevent="submit">
+        <p class="auth-hint">Придумайте новый пароль для своего аккаунта.</p>
+        <label>
+          <span>Новый пароль</span>
+          <input type="password" v-model="password" placeholder="Минимум 6 символов" required>
+        </label>
+        <label>
+          <span>Повторите пароль</span>
+          <input type="password" v-model="confirm" placeholder="Ещё раз" required>
+        </label>
+
+        <p v-if="error" class="auth-error">{{ error }}</p>
+
+        <button type="submit" class="btn-primary auth-submit" :disabled="loading">
+          {{ loading ? 'Подождите…' : 'Сохранить пароль' }}
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/js/reset.js"></script>
+</body>
+</html>

@@ -16,12 +16,20 @@
       </div>
       <p class="auth-tagline">Твой путь в IT — учись и расти</p>
 
-      <div class="auth-tabs">
+      <div class="auth-tabs" v-if="mode !== 'forgot'">
         <button :class="{ active: mode === 'login' }" @click="setMode('login')">Вход</button>
         <button :class="{ active: mode === 'register' }" @click="setMode('register')">Регистрация</button>
       </div>
 
-      <form class="auth-form" @submit.prevent="submit">
+      <!-- Forgot password: sent confirmation -->
+      <div v-if="mode === 'forgot' && sent" class="auth-sent">
+        <p>📨 Если аккаунт с таким email существует, мы отправили на него ссылку для сброса пароля.</p>
+        <p class="auth-switch"><a href="#" @click.prevent="setMode('login')">Вернуться ко входу</a></p>
+      </div>
+
+      <form v-else class="auth-form" @submit.prevent="submit">
+        <p v-if="mode === 'forgot'" class="auth-hint">Укажите email — пришлём ссылку для сброса пароля.</p>
+
         <label v-if="mode === 'register'">
           <span>Имя</span>
           <input type="text" v-model="form.name" placeholder="Как к вам обращаться" required>
@@ -30,25 +38,30 @@
           <span>Email</span>
           <input type="email" v-model="form.email" placeholder="you@example.com" required>
         </label>
-        <label>
+        <label v-if="mode !== 'forgot'">
           <span>Пароль</span>
           <input type="password" v-model="form.password" placeholder="Минимум 6 символов" required>
         </label>
 
+        <p v-if="mode === 'login'" class="auth-forgot">
+          <a href="#" @click.prevent="setMode('forgot')">Забыли пароль?</a>
+        </p>
+
         <p v-if="error" class="auth-error">{{ error }}</p>
 
         <button type="submit" class="btn-primary auth-submit" :disabled="loading">
-          {{ loading ? 'Подождите…' : (mode === 'login' ? 'Войти' : 'Создать аккаунт') }}
+          {{ submitLabel }}
         </button>
       </form>
 
-      <p class="auth-switch">
-        <template v-if="mode === 'login'">Нет аккаунта?
-          <a href="#" @click.prevent="setMode('register')">Зарегистрироваться</a>
-        </template>
-        <template v-else>Уже есть аккаунт?
-          <a href="#" @click.prevent="setMode('login')">Войти</a>
-        </template>
+      <p class="auth-switch" v-if="mode === 'login'">Нет аккаунта?
+        <a href="#" @click.prevent="setMode('register')">Зарегистрироваться</a>
+      </p>
+      <p class="auth-switch" v-else-if="mode === 'register'">Уже есть аккаунт?
+        <a href="#" @click.prevent="setMode('login')">Войти</a>
+      </p>
+      <p class="auth-switch" v-else-if="mode === 'forgot' && !sent">
+        <a href="#" @click.prevent="setMode('login')">Вернуться ко входу</a>
       </p>
     </div>
   </div>

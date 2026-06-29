@@ -14,6 +14,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # chosen learning direction (category slug); null until the user picks one
+    direction: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # gamification (from docs.md): starts at level 0 / 0 XP
     xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

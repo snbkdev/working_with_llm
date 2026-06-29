@@ -11,6 +11,9 @@ createApp({
       // meta (loaded from /api/meta)
       goal: "",
       commands: [],
+      // IT directions (loaded from /api/categories)
+      categories: [],
+      savingDirection: false,
       // gamification placeholders
       xp: 0,
       level: 0,
@@ -44,8 +47,18 @@ createApp({
       return this.xpInLevel;
     },
     goalPct() {
-      // placeholder: derived from level progress toward Level 50
-      return Math.round((this.level / 50) * 100) || 8;
+      // Real progress toward the goal: Level 50 = 50 × 100 = 5000 XP total.
+      const TARGET_XP = 50 * 100;
+      return Math.min(100, Math.round((this.xp / TARGET_XP) * 100));
+    },
+    chosenCategory() {
+      if (!this.user || !this.user.direction) return null;
+      return this.categories.find((c) => c.slug === this.user.direction) || null;
+    },
+    goalText() {
+      // Personal goal derived from the chosen direction; null prompts a choice.
+      const c = this.chosenCategory;
+      return c ? `Освоить направление «${c.title}» и вырасти в IT` : null;
     },
   },
 
@@ -73,6 +86,14 @@ createApp({
     } catch (e) {
       this.goal = "Стать Python-разработчиком";
     }
+
+    try {
+      const res = await fetch("/api/categories");
+      const data = await res.json();
+      this.categories = data.categories;
+    } catch (e) {
+      this.categories = [];
+    }
     this.ready = true;
   },
 
@@ -84,6 +105,21 @@ createApp({
     async logout() {
       await fetch("/api/auth/logout", { method: "POST" });
       window.location.href = "/";
+    },
+    async chooseDirection(slug) {
+      this.savingDirection = true;
+      try {
+        const res = await fetch("/api/auth/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ direction: slug }),
+        });
+        if (res.ok) this.user = await res.json();
+      } catch (e) {
+        /* ignore */
+      } finally {
+        this.savingDirection = false;
+      }
     },
     async send() {
       const text = this.draft.trim();
