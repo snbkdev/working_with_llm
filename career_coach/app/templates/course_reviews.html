@@ -9,46 +9,36 @@
 </head>
 <body>
   <div id="app" v-cloak>
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-logo">🦆</span>
-        <span class="brand-name">Duckie</span>
-        <span class="brand-sub">Career Coach</span>
-      </div>
-      <a class="btn-secondary" href="/app">← Назад в портал</a>
-    </header>
+    <app-topbar active="goal"></app-topbar>
 
-    <main class="reviews-page">
-      <p v-if="loading" class="reviews-page-status">Загрузка…</p>
-      <p v-else-if="error" class="reviews-page-status">{{ error }}</p>
+    <main class="flow-page">
+      <p v-if="loading" class="flow-status">Загрузка…</p>
+      <p v-else-if="error" class="flow-status">{{ error }}</p>
 
       <template v-else>
-        <nav v-if="course.category" class="reviews-crumbs">
-          {{ course.category.icon }} {{ course.category.title }}
-          <span v-if="course.subcategory"> › {{ course.subcategory }}</span>
-          <span v-if="course.technology"> › {{ course.technology }}</span>
-        </nav>
-
-        <div class="reviews-head" :style="{ '--cat-color': (course.category && course.category.color) || '#5d3fd3' }">
-          <h1 class="reviews-title">
-            <a v-if="course.url" :href="course.url" target="_blank" rel="noopener">{{ course.title }} ↗</a>
-            <template v-else>{{ course.title }}</template>
-          </h1>
-          <p class="reviews-meta">
-            <span class="reviews-author">{{ course.author }}</span>
+        <div class="course-head">
+          <h1 class="course-head-title">{{ course.title }}</h1>
+          <p class="course-head-meta">
+            <span class="course-head-author">{{ course.author }}</span>
             <span v-if="course.duration"> · {{ course.duration }}</span>
           </p>
-          <p v-if="course.description" class="reviews-desc">{{ course.description }}</p>
-          <div class="reviews-rating">
-            <template v-if="course.rating">
-              <span class="reviews-rating-num">★ {{ Number(course.rating).toFixed(1) }}</span>
-              <span class="reviews-rating-count">{{ course.reviews_count }} отзывов</span>
-            </template>
-            <span v-else class="reviews-rating-none">Пока нет оценок</span>
-          </div>
         </div>
 
-        <h2 class="section-title">Отзывы</h2>
+        <nav class="course-tabs">
+          <a class="course-tab" :href="`/course/${course.id}`">Обзор</a>
+          <a class="course-tab" :href="`/course/${course.id}/plan`">План обучения</a>
+          <a class="course-tab on" :href="`/course/${course.id}/reviews`">Отзывы<span v-if="course.reviews_count"> ({{ course.reviews_count }})</span></a>
+          <a class="course-tab" :href="`/course/${course.id}/view`">Просмотр</a>
+        </nav>
+
+        <div class="reviews-rating">
+          <template v-if="course.rating">
+            <span class="reviews-rating-num">★ {{ Number(course.rating).toFixed(1) }}</span>
+            <span class="reviews-rating-count">{{ course.reviews_count }} отзывов</span>
+          </template>
+          <span v-else class="reviews-rating-none">Пока нет оценок</span>
+        </div>
+
         <p v-if="!course.reviews.length" class="reviews-empty">
           Пока никто не оставил отзыв об этом курсе. Будьте первым после прохождения 🙂
         </p>
@@ -65,6 +55,7 @@
     </main>
   </div>
 
+  <script src="/static/js/topbar.js"></script>
   <script src="/static/js/course_reviews.js"></script>
 </body>
 </html>

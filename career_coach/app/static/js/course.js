@@ -1,7 +1,7 @@
 // Course info page: header, learning plan, and "make this my goal" action.
 const { createApp } = Vue;
 
-createApp({
+const app = createApp({
   data() {
     return {
       course: null,
@@ -70,4 +70,6 @@ createApp({
       }
     },
   },
-}).mount("#app");
+});
+app.component("app-topbar", AppTopbar);
+app.mount("#app");

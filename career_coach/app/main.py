@@ -97,6 +97,12 @@ async def course_page(course_id: int) -> FileResponse:
     return FileResponse(TEMPLATES / "course.html")
 
 
+@app.get("/course/{course_id}/plan")
+async def course_plan_page(course_id: int) -> FileResponse:
+    """Course learning-plan page (course id read client-side)."""
+    return FileResponse(TEMPLATES / "course_plan.html")
+
+
 @app.get("/course/{course_id}/view")
 async def course_view_page(course_id: int) -> FileResponse:
     """Placeholder 'watch course' page (content to come later)."""

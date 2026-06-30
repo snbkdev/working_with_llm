@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Просмотр курса — Duckie</title>
+  <title>План обучения — Duckie</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
@@ -13,7 +13,9 @@
 
     <main class="flow-page">
       <p v-if="loading" class="flow-status">Загрузка…</p>
-      <template v-else-if="course">
+      <p v-else-if="error" class="flow-status">{{ error }}</p>
+
+      <template v-else>
         <div class="course-head">
           <h1 class="course-head-title">{{ course.title }}</h1>
           <p class="course-head-meta">
@@ -24,22 +26,27 @@
 
         <nav class="course-tabs">
           <a class="course-tab" :href="`/course/${course.id}`">Обзор</a>
-          <a class="course-tab" :href="`/course/${course.id}/plan`">План обучения</a>
+          <a class="course-tab on" :href="`/course/${course.id}/plan`">План обучения</a>
           <a class="course-tab" :href="`/course/${course.id}/reviews`">Отзывы<span v-if="course.reviews_count"> ({{ course.reviews_count }})</span></a>
-          <a class="course-tab on" :href="`/course/${course.id}/view`">Просмотр</a>
+          <a class="course-tab" :href="`/course/${course.id}/view`">Просмотр</a>
         </nav>
 
-        <div class="view-placeholder">
-          <span class="view-placeholder-ico">🎬</span>
-          <p class="view-placeholder-text">Контент курса появится позже.</p>
-          <p class="view-placeholder-sub">Здесь будут уроки и видео по плану обучения.</p>
-        </div>
+        <p v-if="!course.lessons.length" class="flow-empty">План скоро появится.</p>
+        <ol v-else class="plan-list">
+          <li v-for="(l, i) in course.lessons" :key="l.id" class="plan-item">
+            <span class="plan-num">{{ i + 1 }}</span>
+            <span class="plan-body">
+              <span class="plan-title">{{ l.title }}</span>
+              <span v-if="l.description" class="plan-desc">{{ l.description }}</span>
+            </span>
+            <span v-if="l.duration" class="plan-dur">{{ l.duration }}</span>
+          </li>
+        </ol>
       </template>
-      <p v-else class="flow-status">Курс не найден</p>
     </main>
   </div>
 
   <script src="/static/js/topbar.js"></script>
-  <script src="/static/js/course_view.js"></script>
+  <script src="/static/js/course_plan.js"></script>
 </body>
 </html>

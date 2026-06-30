@@ -1,17 +1,12 @@
-// Standalone "course reviews" page. Reads the course id from the URL
-// (/course/<id>/reviews) and renders the course header + its reviews.
+// Course learning-plan page: renders the lessons of a course.
 const { createApp } = Vue;
 
 const app = createApp({
   data() {
-    return {
-      course: null,
-      loading: true,
-      error: "",
-    };
+    return { course: null, loading: true, error: "" };
   },
   async mounted() {
-    const m = window.location.pathname.match(/\/course\/(\d+)\/reviews/);
+    const m = window.location.pathname.match(/\/course\/(\d+)\/plan/);
     const id = m && m[1];
     if (!id) {
       this.error = "Курс не указан";
@@ -19,7 +14,7 @@ const app = createApp({
       return;
     }
     try {
-      const res = await fetch(`/api/courses/${id}/reviews`);
+      const res = await fetch(`/api/courses/${id}`);
       if (!res.ok) {
         this.error = res.status === 404 ? "Курс не найден" : "Не удалось загрузить курс";
         return;
@@ -30,11 +25,6 @@ const app = createApp({
     } finally {
       this.loading = false;
     }
-  },
-  methods: {
-    stars(n) {
-      return "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n));
-    },
   },
 });
 app.component("app-topbar", AppTopbar);

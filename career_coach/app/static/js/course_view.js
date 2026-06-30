@@ -1,25 +1,24 @@
-// Placeholder "watch course" page. Shows the course title; real lesson
-// content will be added later.
+// Placeholder "watch course" page. Loads course meta for the header + tabs;
+// real lesson content will be added later.
 const { createApp } = Vue;
 
-createApp({
+const app = createApp({
   data() {
-    return { courseId: null, title: "Просмотр курса", loading: true };
+    return { course: null, loading: true };
   },
   async mounted() {
     const m = window.location.pathname.match(/\/course\/(\d+)\/view/);
-    this.courseId = m && m[1];
-    if (this.courseId) {
+    const id = m && m[1];
+    if (id) {
       try {
-        const res = await fetch(`/api/courses/${this.courseId}`);
-        if (res.ok) {
-          const c = await res.json();
-          this.title = c.title;
-        }
+        const res = await fetch(`/api/courses/${id}`);
+        if (res.ok) this.course = await res.json();
       } catch (e) {
-        /* keep default title */
+        /* leave course null */
       }
     }
     this.loading = false;
   },
-}).mount("#app");
+});
+app.component("app-topbar", AppTopbar);
+app.mount("#app");

@@ -6,7 +6,7 @@
 // Each card is a plain <a> link, so moving a level is a real page navigation.
 const { createApp } = Vue;
 
-createApp({
+const app = createApp({
   data() {
     return {
       loading: true,
@@ -106,4 +106,6 @@ createApp({
       this.error = msg;
     },
   },
-}).mount("#app");
+});
+app.component("app-topbar", AppTopbar);
+app.mount("#app");

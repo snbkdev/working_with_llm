@@ -9,21 +9,14 @@
 </head>
 <body>
   <div id="app" v-cloak>
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-logo">🦆</span>
-        <span class="brand-name">Duckie</span>
-        <span class="brand-sub">Career Coach</span>
-      </div>
-      <a class="btn-secondary" href="/app">← В портал</a>
-    </header>
+    <app-topbar active="goal"></app-topbar>
 
     <main class="flow-page">
       <p v-if="loading" class="flow-status">Загрузка…</p>
       <p v-else-if="error" class="flow-status">{{ error }}</p>
 
       <template v-else>
-        <nav class="flow-crumbs">
+        <nav class="flow-crumbs" :style="{ '--cat-color': accent }">
           <a href="/goal">Цель</a>
           <template v-if="course.category">
             <span class="flow-crumb-sep">›</span>
@@ -35,42 +28,41 @@
           </template>
         </nav>
 
-        <div class="course-hero" :style="{ '--cat-color': accent }">
-          <h1 class="course-hero-title">{{ course.title }}</h1>
-          <p class="course-hero-meta">
-            <span class="course-hero-author">{{ course.author }}</span>
+        <div class="course-head">
+          <h1 class="course-head-title">{{ course.title }}</h1>
+          <p class="course-head-meta">
+            <span class="course-head-author">{{ course.author }}</span>
             <span v-if="course.duration"> · {{ course.duration }}</span>
+          </p>
+        </div>
+
+        <nav class="course-tabs">
+          <a class="course-tab on" :href="`/course/${course.id}`">Обзор</a>
+          <a class="course-tab" :href="`/course/${course.id}/plan`">План обучения</a>
+          <a class="course-tab" :href="`/course/${course.id}/reviews`">Отзывы<span v-if="course.reviews_count"> ({{ course.reviews_count }})</span></a>
+          <a class="course-tab" :href="`/course/${course.id}/view`">Просмотр</a>
+        </nav>
+
+        <div class="course-hero" :style="{ '--cat-color': accent }">
+          <p class="course-hero-rating-row">
             <a class="course-hero-rating" :href="`/course/${course.id}/reviews`">
               <template v-if="course.rating">★ {{ Number(course.rating).toFixed(1) }} · {{ course.reviews_count }} отзывов</template>
-              <template v-else>Отзывы</template>
+              <template v-else>Пока нет оценок</template>
             </a>
           </p>
           <p v-if="course.description" class="course-hero-desc">{{ course.description }}</p>
-
           <div class="course-actions">
             <button class="btn-primary" :class="{ 'is-goal': isGoal }" :disabled="saving" @click="toggleGoal">
               {{ isGoal ? '✓ Это ваша цель' : 'Сделать целью' }}
             </button>
-            <a class="btn-secondary" :href="`/course/${course.id}/view`">▶ Просмотр курса</a>
+            <a class="btn-secondary" :href="`/course/${course.id}/view`">▶ Начать просмотр</a>
           </div>
         </div>
-
-        <h2 class="section-title">План обучения</h2>
-        <p v-if="!course.lessons.length" class="flow-empty">План скоро появится.</p>
-        <ol v-else class="plan-list">
-          <li v-for="(l, i) in course.lessons" :key="l.id" class="plan-item">
-            <span class="plan-num">{{ i + 1 }}</span>
-            <span class="plan-body">
-              <span class="plan-title">{{ l.title }}</span>
-              <span v-if="l.description" class="plan-desc">{{ l.description }}</span>
-            </span>
-            <span v-if="l.duration" class="plan-dur">{{ l.duration }}</span>
-          </li>
-        </ol>
       </template>
     </main>
   </div>
 
+  <script src="/static/js/topbar.js"></script>
   <script src="/static/js/course.js"></script>
 </body>
 </html>

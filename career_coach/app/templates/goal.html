@@ -9,25 +9,18 @@
 </head>
 <body>
   <div id="app" v-cloak>
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-logo">🦆</span>
-        <span class="brand-name">Duckie</span>
-        <span class="brand-sub">Career Coach</span>
-      </div>
-      <a class="btn-secondary" href="/app">← В портал</a>
-    </header>
+    <app-topbar active="goal"></app-topbar>
 
     <main class="flow-page">
       <p v-if="loading" class="flow-status">Загрузка…</p>
       <p v-else-if="error" class="flow-status">{{ error }}</p>
 
       <template v-else>
-        <nav class="flow-crumbs">
+        <nav class="flow-crumbs" :style="{ '--cat-color': accent }">
           <a href="/goal">Цель</a>
-          <template v-for="c in crumbs" :key="c.href">
+          <template v-for="(c, i) in crumbs" :key="c.href">
             <span class="flow-crumb-sep">›</span>
-            <a :href="c.href">{{ c.title }}</a>
+            <a :href="c.href" :class="{ 'flow-crumb-current': i === crumbs.length - 1 }">{{ c.title }}</a>
           </template>
         </nav>
 
@@ -51,6 +44,7 @@
     </main>
   </div>
 
+  <script src="/static/js/topbar.js"></script>
   <script src="/static/js/goal.js"></script>
 </body>
 </html>
