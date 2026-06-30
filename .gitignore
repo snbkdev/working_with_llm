@@ -52,6 +52,9 @@ htmlcov/
 # --- Игровые данные ---
 snake_game/scores.json
 
+# --- Загруженные пользователями файлы (аватары) ---
+career_coach/app/static/uploads/
+
 
 *.png
 *.svg

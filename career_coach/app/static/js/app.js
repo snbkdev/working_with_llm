@@ -15,6 +15,8 @@ createApp({
       categories: [],
       savingDirection: false,
       savingPlanned: false,
+      // expanded category slugs in the goal drill-down
+      expanded: [],
       // gamification placeholders
       xp: 0,
       level: 0,
@@ -28,6 +30,9 @@ createApp({
       info: { full_name: "", birth_date: "", bio: "" },
       savingInfo: false,
       infoSaved: false,
+      // avatar upload
+      uploadingAvatar: false,
+      avatarError: "",
       // chat
       messages: [
         {
@@ -57,14 +62,20 @@ createApp({
       const TARGET_XP = 50 * 100;
       return Math.min(100, Math.round((this.xp / TARGET_XP) * 100));
     },
-    chosenCategory() {
+    chosenSub() {
+      // Resolve the current goal (a "category/subcategory" path) to objects.
       if (!this.user || !this.user.direction) return null;
-      return this.categories.find((c) => c.slug === this.user.direction) || null;
+      for (const cat of this.categories) {
+        for (const sub of cat.subcategories || []) {
+          if (`${cat.slug}/${sub.slug}` === this.user.direction) return { cat, sub };
+        }
+      }
+      return null;
     },
     goalText() {
-      // Personal goal derived from the chosen direction; null prompts a choice.
-      const c = this.chosenCategory;
-      return c ? `Освоить направление «${c.title}» и вырасти в IT` : null;
+      // Personal goal derived from the chosen subcategory; null prompts a choice.
+      const cs = this.chosenSub;
+      return cs ? `Освоить «${cs.sub.title}» (${cs.cat.title})` : null;
     },
     initials() {
       const src = (this.user && (this.user.full_name || this.user.name)) || "";
@@ -133,6 +144,7 @@ createApp({
     openInfo() {
       this.menuOpen = false;
       this.infoSaved = false;
+      this.avatarError = "";
       // Prefill form from the loaded user.
       this.info.full_name = this.user.full_name || "";
       this.info.birth_date = this.user.birth_date || "";
@@ -142,15 +154,35 @@ createApp({
     openGoal() {
       this.menuOpen = false;
       this.view = "goal";
+      // Auto-expand the category that holds the current goal, if any.
+      const cs = this.chosenSub;
+      if (cs && !this.expanded.includes(cs.cat.slug)) this.expanded.push(cs.cat.slug);
     },
-    isPlanned(slug) {
-      return (this.user.planned || []).includes(slug);
+    subPath(cat, sub) {
+      return `${cat.slug}/${sub.slug}`;
     },
-    async togglePlanned(slug) {
+    isExpanded(slug) {
+      return this.expanded.includes(slug);
+    },
+    toggleCat(slug) {
+      this.expanded = this.expanded.includes(slug)
+        ? this.expanded.filter((s) => s !== slug)
+        : [...this.expanded, slug];
+    },
+    catHasGoal(cat) {
+      return (cat.subcategories || []).some((s) => this.isCurrent(cat, s));
+    },
+    isCurrent(cat, sub) {
+      return this.user.direction === this.subPath(cat, sub);
+    },
+    isPlanned(path) {
+      return (this.user.planned || []).includes(path);
+    },
+    async togglePlanned(path) {
       const current = this.user.planned || [];
-      const next = current.includes(slug)
-        ? current.filter((s) => s !== slug)
-        : [...current, slug];
+      const next = current.includes(path)
+        ? current.filter((s) => s !== path)
+        : [...current, path];
       this.savingPlanned = true;
       try {
         const res = await fetch("/api/auth/profile", {
@@ -163,6 +195,48 @@ createApp({
         /* ignore */
       } finally {
         this.savingPlanned = false;
+      }
+    },
+    async uploadAvatar(event) {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = ""; // allow re-selecting the same file later
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        this.avatarError = "Можно загружать только изображения";
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        this.avatarError = "Файл слишком большой (максимум 2 МБ)";
+        return;
+      }
+      this.avatarError = "";
+      this.uploadingAvatar = true;
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch("/api/auth/avatar", { method: "POST", body: form });
+        if (res.ok) {
+          this.user = await res.json();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          this.avatarError = data.detail || "Не удалось загрузить файл";
+        }
+      } catch (e) {
+        this.avatarError = "Ошибка соединения с сервером";
+      } finally {
+        this.uploadingAvatar = false;
+      }
+    },
+    async removeAvatar() {
+      this.avatarError = "";
+      this.uploadingAvatar = true;
+      try {
+        const res = await fetch("/api/auth/avatar", { method: "DELETE" });
+        if (res.ok) this.user = await res.json();
+      } catch (e) {
+        this.avatarError = "Ошибка соединения с сервером";
+      } finally {
+        this.uploadingAvatar = false;
       }
     },
     async saveInfo() {
@@ -192,13 +266,16 @@ createApp({
       await fetch("/api/auth/logout", { method: "POST" });
       window.location.href = "/";
     },
-    async chooseDirection(slug) {
+    async chooseSub(cat, sub) {
+      // Toggle: clicking the current goal again clears it.
+      const path = this.subPath(cat, sub);
+      const next = this.isCurrent(cat, sub) ? null : path;
       this.savingDirection = true;
       try {
         const res = await fetch("/api/auth/profile", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ direction: slug }),
+          body: JSON.stringify({ direction: next }),
         });
         if (res.ok) this.user = await res.json();
       } catch (e) {

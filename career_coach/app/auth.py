@@ -1,7 +1,19 @@
 """Authentication routes: register, login, logout, current user."""
+import secrets
 from datetime import date
+from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, HTTPException, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    File,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from . import mailer
 from .config import ACCESS_TOKEN_EXPIRE_MINUTES, ADMIN_EMAILS, APP_BASE_URL, COOKIE_NAME
 from .db import get_session
-from .models import Category, User
+from .models import Category, Subcategory, User
 from .security import (
     create_access_token,
     create_reset_token,
@@ -20,6 +32,17 @@ from .security import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+# Avatar uploads land in app/static/uploads/avatars and are served via /static.
+AVATAR_DIR = Path(__file__).resolve().parent / "static" / "uploads" / "avatars"
+AVATAR_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+# Allowed image types mapped to the extension we save them under.
+AVATAR_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
 
 
 class RegisterPayload(BaseModel):
@@ -54,6 +77,7 @@ class UserOut(BaseModel):
     full_name: str | None = None
     birth_date: date | None = None
     bio: str | None = None
+    avatar: str | None = None
 
 
 class ProfilePayload(BaseModel):
@@ -64,9 +88,14 @@ class ProfilePayload(BaseModel):
     bio: str | None = Field(default=None, max_length=2000)
 
 
-async def _valid_direction_slugs(db: AsyncSession) -> set[str]:
-    rows = await db.scalars(select(Category.slug))
-    return set(rows.all())
+async def _valid_direction_paths(db: AsyncSession) -> set[str]:
+    """Valid goal targets are subcategories, addressed as 'category/subcategory'."""
+    rows = await db.execute(
+        select(Category.slug, Subcategory.slug).join(
+            Subcategory, Subcategory.category_id == Category.id
+        )
+    )
+    return {f"{cat}/{sub}" for cat, sub in rows.all()}
 
 
 def _set_session_cookie(response: Response, user_id: int) -> None:
@@ -209,10 +238,11 @@ async def update_profile(
     fields = payload.model_dump(exclude_unset=True)
     valid = None
     if "direction" in fields or "planned" in fields:
-        valid = await _valid_direction_slugs(db)
+        valid = await _valid_direction_paths(db)
 
     if "direction" in fields:
-        if fields["direction"] not in valid:
+        # null clears the goal; otherwise it must be a known subcategory path
+        if fields["direction"] is not None and fields["direction"] not in valid:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Неизвестное направление")
         user.direction = fields["direction"]
     if "planned" in fields:
@@ -228,6 +258,66 @@ async def update_profile(
     if "bio" in fields:
         user.bio = fields["bio"]
 
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+def _remove_old_avatar(url: str | None) -> None:
+    """Delete a previously stored avatar file (best-effort)."""
+    if not url:
+        return
+    old = AVATAR_DIR / Path(url).name
+    try:
+        if old.is_file():
+            old.unlink()
+    except OSError:
+        pass
+
+
+@router.post("/avatar", response_model=UserOut)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> User:
+    """Upload (or replace) the user's profile avatar."""
+    ext = AVATAR_EXTENSIONS.get(file.content_type)
+    if not ext:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Поддерживаются только изображения JPEG, PNG, GIF или WebP",
+        )
+    data = await file.read()
+    if len(data) > AVATAR_MAX_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "Файл слишком большой (максимум 2 МБ)",
+        )
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Пустой файл")
+
+    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    _remove_old_avatar(user.avatar)
+
+    # Random suffix busts the browser cache when the avatar is replaced.
+    filename = f"{user.id}_{secrets.token_hex(4)}{ext}"
+    (AVATAR_DIR / filename).write_bytes(data)
+
+    user.avatar = f"/static/uploads/avatars/{filename}"
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.delete("/avatar", response_model=UserOut)
+async def delete_avatar(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> User:
+    """Remove the user's avatar."""
+    _remove_old_avatar(user.avatar)
+    user.avatar = None
     await db.commit()
     await db.refresh(user)
     return user

@@ -4,10 +4,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from .auth import require_admin
-from .catalog import cat_dict
+from .catalog import _TREE_LOADER, cat_dict
 from .db import get_session
 from .models import Category, Subcategory
 
@@ -48,7 +47,7 @@ async def _load_category(category_id: int, db: AsyncSession) -> Category:
     cat = await db.scalar(
         select(Category)
         .where(Category.id == category_id)
-        .options(selectinload(Category.subcategories))
+        .options(_TREE_LOADER)
         # refresh identity-mapped state so freshly added subs are included
         .execution_options(populate_existing=True)
     )
@@ -62,7 +61,7 @@ async def _load_category(category_id: int, db: AsyncSession) -> Category:
 @router.get("/categories")
 async def admin_list(db: AsyncSession = Depends(get_session)) -> list[dict]:
     result = await db.scalars(
-        select(Category).options(selectinload(Category.subcategories)).order_by(Category.position, Category.id)
+        select(Category).options(_TREE_LOADER).order_by(Category.position, Category.id)
     )
     return [cat_dict(c) for c in result.all()]
 

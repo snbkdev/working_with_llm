@@ -34,6 +34,8 @@ class User(Base):
     full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # URL path to the uploaded avatar (e.g. /static/uploads/avatars/3.png)
+    avatar: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # gamification (from docs.md): starts at level 0 / 0 XP
     xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -74,3 +76,51 @@ class Subcategory(Base):
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     category: Mapped["Category"] = relationship(back_populates="subcategories")
+    technologies: Mapped[list["Technology"]] = relationship(
+        back_populates="subcategory",
+        cascade="all, delete-orphan",
+        order_by="Technology.position",
+    )
+
+
+class Technology(Base):
+    """Concrete tool/framework under a subcategory, e.g. FastAPI under Python."""
+
+    __tablename__ = "technologies"
+    __table_args__ = (UniqueConstraint("subcategory_id", "slug", name="uq_tech_slug"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    subcategory_id: Mapped[int] = mapped_column(
+        ForeignKey("subcategories.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    slug: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    subcategory: Mapped["Subcategory"] = relationship(back_populates="technologies")
+    courses: Mapped[list["Course"]] = relationship(
+        back_populates="technology",
+        cascade="all, delete-orphan",
+        order_by="Course.position",
+    )
+
+
+class Course(Base):
+    """A specific video course for a technology, by a given author."""
+
+    __tablename__ = "courses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    technology_id: Mapped[int] = mapped_column(
+        ForeignKey("technologies.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    author: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    # human-readable length, e.g. "12 ч"; free-form so seeds stay simple
+    duration: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    description: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    technology: Mapped["Technology"] = relationship(back_populates="courses")
