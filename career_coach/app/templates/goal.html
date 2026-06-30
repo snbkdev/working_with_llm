@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Цель — Duckie</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app" v-cloak>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+        <span class="brand-sub">Career Coach</span>
+      </div>
+      <a class="btn-secondary" href="/app">← В портал</a>
+    </header>
+
+    <main class="flow-page">
+      <p v-if="loading" class="flow-status">Загрузка…</p>
+      <p v-else-if="error" class="flow-status">{{ error }}</p>
+
+      <template v-else>
+        <nav class="flow-crumbs">
+          <a href="/goal">Цель</a>
+          <template v-for="c in crumbs" :key="c.href">
+            <span class="flow-crumb-sep">›</span>
+            <a :href="c.href">{{ c.title }}</a>
+          </template>
+        </nav>
+
+        <h1 class="flow-title">{{ title }}</h1>
+        <p class="flow-subtitle">{{ subtitle }}</p>
+
+        <div class="flow-grid" :style="{ '--cat-color': accent }">
+          <a v-for="it in items" :key="it.href" class="flow-card" :href="it.href">
+            <span v-if="it.icon" class="flow-card-ico"
+                  :style="{ background: accent + '1f', color: accent }">{{ it.icon }}</span>
+            <span class="flow-card-body">
+              <span class="flow-card-title">{{ it.title }}</span>
+              <span v-if="it.desc" class="flow-card-desc">{{ it.desc }}</span>
+              <span v-if="it.meta" class="flow-card-meta">{{ it.meta }}</span>
+            </span>
+            <span class="flow-card-arrow">→</span>
+          </a>
+        </div>
+        <p v-if="!items.length" class="flow-empty">Пока пусто.</p>
+      </template>
+    </main>
+  </div>
+
+  <script src="/static/js/goal.js"></script>
+</body>
+</html>

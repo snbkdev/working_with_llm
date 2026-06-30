@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -36,6 +37,9 @@ class User(Base):
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     # URL path to the uploaded avatar (e.g. /static/uploads/avatars/3.png)
     avatar: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # chosen technology + course within the goal subcategory (null until picked)
+    goal_technology_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    goal_course_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # gamification (from docs.md): starts at level 0 / 0 XP
     xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -121,6 +125,53 @@ class Course(Base):
     duration: Mapped[str] = mapped_column(String(40), default="", nullable=False)
     url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     description: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    # aggregate rating shown in the UI; review texts live in the reviews table
+    rating: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    reviews_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     technology: Mapped["Technology"] = relationship(back_populates="courses")
+    reviews: Mapped[list["Review"]] = relationship(
+        back_populates="course",
+        cascade="all, delete-orphan",
+        order_by="Review.position",
+    )
+    lessons: Mapped[list["Lesson"]] = relationship(
+        back_populates="course",
+        cascade="all, delete-orphan",
+        order_by="Lesson.position",
+    )
+
+
+class Lesson(Base):
+    """A single step of a course's learning plan (план обучения)."""
+
+    __tablename__ = "lessons"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(String(400), default="", nullable=False)
+    duration: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    course: Mapped["Course"] = relationship(back_populates="lessons")
+
+
+class Review(Base):
+    """A short review left by someone who took a course."""
+
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    author: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    text: Mapped[str] = mapped_column(String(600), default="", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    course: Mapped["Course"] = relationship(back_populates="reviews")

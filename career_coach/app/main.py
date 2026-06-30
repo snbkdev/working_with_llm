@@ -79,6 +79,36 @@ async def admin_page() -> FileResponse:
     return FileResponse(TEMPLATES / "admin.html")
 
 
+@app.get("/goal")
+@app.get("/goal/{category}")
+@app.get("/goal/{category}/{subcategory}")
+@app.get("/goal/{category}/{subcategory}/{technology}")
+async def goal_page(category: str = "", subcategory: str = "", technology: str = "") -> FileResponse:
+    """Goal drill-down pages: categories → subcategories → technologies → courses.
+
+    The current level is read from the URL path on the client.
+    """
+    return FileResponse(TEMPLATES / "goal.html")
+
+
+@app.get("/course/{course_id}")
+async def course_page(course_id: int) -> FileResponse:
+    """Course info page with the learning plan (course id read client-side)."""
+    return FileResponse(TEMPLATES / "course.html")
+
+
+@app.get("/course/{course_id}/view")
+async def course_view_page(course_id: int) -> FileResponse:
+    """Placeholder 'watch course' page (content to come later)."""
+    return FileResponse(TEMPLATES / "course_view.html")
+
+
+@app.get("/course/{course_id}/reviews")
+async def course_reviews_page(course_id: int) -> FileResponse:
+    """Standalone page with reviews for a single course (course id read client-side)."""
+    return FileResponse(TEMPLATES / "course_reviews.html")
+
+
 @app.get("/api/meta")
 async def meta() -> dict:
     """App metadata for the frontend (name, goal, commands)."""

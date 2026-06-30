@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Курс — Duckie</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app" v-cloak>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+        <span class="brand-sub">Career Coach</span>
+      </div>
+      <a class="btn-secondary" href="/app">← В портал</a>
+    </header>
+
+    <main class="flow-page">
+      <p v-if="loading" class="flow-status">Загрузка…</p>
+      <p v-else-if="error" class="flow-status">{{ error }}</p>
+
+      <template v-else>
+        <nav class="flow-crumbs">
+          <a href="/goal">Цель</a>
+          <template v-if="course.category">
+            <span class="flow-crumb-sep">›</span>
+            <a :href="`/goal/${course.category.slug}`">{{ course.category.title }}</a>
+            <span class="flow-crumb-sep">›</span>
+            <a :href="`/goal/${course.category.slug}/${course.subcategory_slug}`">{{ course.subcategory }}</a>
+            <span class="flow-crumb-sep">›</span>
+            <a :href="`/goal/${course.category.slug}/${course.subcategory_slug}/${course.technology_slug}`">{{ course.technology }}</a>
+          </template>
+        </nav>
+
+        <div class="course-hero" :style="{ '--cat-color': accent }">
+          <h1 class="course-hero-title">{{ course.title }}</h1>
+          <p class="course-hero-meta">
+            <span class="course-hero-author">{{ course.author }}</span>
+            <span v-if="course.duration"> · {{ course.duration }}</span>
+            <a class="course-hero-rating" :href="`/course/${course.id}/reviews`">
+              <template v-if="course.rating">★ {{ Number(course.rating).toFixed(1) }} · {{ course.reviews_count }} отзывов</template>
+              <template v-else>Отзывы</template>
+            </a>
+          </p>
+          <p v-if="course.description" class="course-hero-desc">{{ course.description }}</p>
+
+          <div class="course-actions">
+            <button class="btn-primary" :class="{ 'is-goal': isGoal }" :disabled="saving" @click="toggleGoal">
+              {{ isGoal ? '✓ Это ваша цель' : 'Сделать целью' }}
+            </button>
+            <a class="btn-secondary" :href="`/course/${course.id}/view`">▶ Просмотр курса</a>
+          </div>
+        </div>
+
+        <h2 class="section-title">План обучения</h2>
+        <p v-if="!course.lessons.length" class="flow-empty">План скоро появится.</p>
+        <ol v-else class="plan-list">
+          <li v-for="(l, i) in course.lessons" :key="l.id" class="plan-item">
+            <span class="plan-num">{{ i + 1 }}</span>
+            <span class="plan-body">
+              <span class="plan-title">{{ l.title }}</span>
+              <span v-if="l.description" class="plan-desc">{{ l.description }}</span>
+            </span>
+            <span v-if="l.duration" class="plan-dur">{{ l.duration }}</span>
+          </li>
+        </ol>
+      </template>
+    </main>
+  </div>
+
+  <script src="/static/js/course.js"></script>
+</body>
+</html>

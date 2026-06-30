@@ -42,6 +42,10 @@ async def init_db() -> None:
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(255)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS planned JSON DEFAULT '[]'",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false NOT NULL",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_technology_id INTEGER",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_course_id INTEGER",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION DEFAULT 0 NOT NULL",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS reviews_count INTEGER DEFAULT 0 NOT NULL",
         ):
             await conn.execute(text(ddl))
 
@@ -80,39 +84,45 @@ async def seed_catalog() -> None:
 async def seed_tree() -> None:
     """Backfill technologies and their courses for already-seeded subcategories.
 
-    Runs only when the technologies table is empty, so it works both on a fresh
-    DB and on an older one that already has categories/subcategories.
+    Incremental: adds any seed technology that does not yet exist under its
+    subcategory (keyed by subcategory + slug), leaving existing rows untouched.
+    Works on a fresh DB and on one that was seeded with an earlier, smaller set.
     """
-    from sqlalchemy import func, select
+    from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
     from .models import Category, Course, Subcategory, Technology
     from .seed import SEED_CATEGORIES
 
     async with SessionLocal() as session:
-        existing = await session.scalar(select(func.count()).select_from(Technology))
-        if existing:
-            return
-
-        # Map (category_slug, subcategory_slug) -> Subcategory for lookups.
+        # Map (category_slug, subcategory_slug) -> Subcategory, with existing
+        # technology slugs preloaded so we can skip ones already present.
         cats = (
             await session.scalars(
-                select(Category).options(selectinload(Category.subcategories))
+                select(Category).options(
+                    selectinload(Category.subcategories).selectinload(Subcategory.technologies)
+                )
             )
         ).all()
         subs: dict[tuple[str, str], Subcategory] = {
             (cat.slug, sub.slug): sub for cat in cats for sub in cat.subcategories
         }
 
+        added = False
         for cat in SEED_CATEGORIES:
             for sub in cat["subcategories"]:
                 target = subs.get((cat["slug"], sub["slug"]))
                 if target is None:
                     continue
-                for tpos, tech in enumerate(sub.get("technologies", [])):
+                existing_slugs = {t.slug for t in target.technologies}
+                base_pos = len(target.technologies)
+                for offset, tech in enumerate(sub.get("technologies", [])):
+                    if tech["slug"] in existing_slugs:
+                        continue
                     technology = Technology(
                         subcategory_id=target.id, slug=tech["slug"],
-                        title=tech["title"], description=tech["description"], position=tpos,
+                        title=tech["title"], description=tech["description"],
+                        position=base_pos + offset,
                     )
                     for cpos, course in enumerate(tech.get("courses", [])):
                         technology.courses.append(
@@ -123,4 +133,67 @@ async def seed_tree() -> None:
                             )
                         )
                     session.add(technology)
-        await session.commit()
+                    added = True
+        if added:
+            await session.commit()
+
+    await seed_lessons()
+    # Reviews/ratings are intentionally left empty for now — real user reviews
+    # will be added later as a separate feature.
+
+
+# Generic but coherent learning-plan steps; {tech} is filled per course.
+_LESSON_PLAN = [
+    ("Введение и настройка окружения",
+     "Знакомство с курсом, установка инструментов и первый запуск.", "1 ч"),
+    ("Основы и базовый синтаксис",
+     "Ключевые понятия и первые практические примеры.", "2 ч"),
+    ("Главные концепции {tech}",
+     "Разбираем основные возможности {tech} на практике.", "3 ч"),
+    ("Работа с данными",
+     "Структуры данных, ввод-вывод, обработка типичных задач.", "2 ч"),
+    ("Практика: первое приложение",
+     "Собираем небольшой проект, закрепляя пройденное.", "3 ч"),
+    ("Продвинутые возможности {tech}",
+     "Углубляемся в темы для уверенного уровня.", "3 ч"),
+    ("Тестирование и отладка",
+     "Находим и исправляем ошибки, пишем проверки.", "2 ч"),
+    ("Итоговый проект",
+     "Финальная работа, которая собирает все навыки воедино.", "4 ч"),
+]
+
+
+async def seed_lessons() -> None:
+    """Backfill a learning plan (lessons) for any course that has none yet."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from .models import Course, Lesson, Technology
+
+    async with SessionLocal() as session:
+        courses = (
+            await session.scalars(
+                select(Course).options(
+                    selectinload(Course.lessons), selectinload(Course.technology)
+                )
+            )
+        ).all()
+        added = False
+        for course in courses:
+            if course.lessons:  # already has a plan — leave as is
+                continue
+            tech = course.technology.title if course.technology else "технологию"
+            # Drop a trailing "(основы …)" so substitutions read naturally.
+            tech = tech.split(" (")[0]
+            for pos, (title, desc, dur) in enumerate(_LESSON_PLAN):
+                course.lessons.append(
+                    Lesson(
+                        title=title.format(tech=tech),
+                        description=desc.format(tech=tech),
+                        duration=dur,
+                        position=pos,
+                    )
+                )
+            added = True
+        if added:
+            await session.commit()

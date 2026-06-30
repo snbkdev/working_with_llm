@@ -32,7 +32,7 @@
           </button>
           <div v-if="menuOpen" class="profile-menu">
             <button class="profile-menu-item" @click="openInfo">ℹ️ Информация</button>
-            <button class="profile-menu-item" @click="openGoal">🎯 Цель</button>
+            <a class="profile-menu-item" href="/goal">🎯 Цель</a>
             <a v-if="user && user.is_admin" class="profile-menu-item" href="/admin">🛠️ Админка</a>
             <button class="profile-menu-item danger" @click="logout">🚪 Выход</button>
           </div>
@@ -46,14 +46,16 @@
       <aside class="sidebar">
         <div class="goal-card">
           <span class="goal-label">Моя цель</span>
-          <template v-if="goalText">
-            <p class="goal-text">{{ goalText }}</p>
+          <template v-if="goalCourse">
+            <a class="goal-text goal-text-link" :href="'/course/' + goalCourse.id">{{ goalCourse.title }}</a>
+            <span class="goal-sub" v-if="goalCourse.technology">{{ goalCourse.technology }} · {{ goalCourse.author }}</span>
             <div class="goal-progress"><div class="goal-fill" :style="{ width: goalPct + '%' }"></div></div>
             <span class="goal-pct">{{ goalPct }}% пути пройдено</span>
+            <a class="goal-choose" href="/goal">Сменить курс</a>
           </template>
           <template v-else>
-            <p class="goal-text">Выберите направление, которое хотите изучать</p>
-            <button class="goal-choose" @click="openGoal">Выбрать направление</button>
+            <p class="goal-text">Выберите курс, который хотите пройти</p>
+            <a class="goal-choose" href="/goal">Выбрать курс</a>
           </template>
         </div>
 
@@ -157,80 +159,6 @@
                 <span class="achievement-title">{{ a.title }}</span>
                 <span class="achievement-desc">{{ a.desc }}</span>
               </span>
-            </div>
-          </div>
-        </section>
-
-        <!-- GOAL (выбор направления: категория → подкатегория → технологии/курсы) -->
-        <section v-else-if="view === 'goal'" class="view">
-          <div class="goal-head">
-            <h1 class="view-title">Цель</h1>
-            <span class="private-badge" title="Этот раздел виден только вам">🔒 Виден только вам</span>
-          </div>
-          <p class="view-sub">
-            Откройте категорию, выберите направление, которое изучаете сейчас, и при желании
-            добавьте другие в план. Под выбранным направлением — технологии и курсы.
-          </p>
-
-          <div class="cat-acc-list">
-            <div v-for="cat in categories" :key="cat.slug" class="cat-acc"
-                 :class="{ open: isExpanded(cat.slug), 'has-goal': catHasGoal(cat) }"
-                 :style="{ '--cat-color': cat.color }">
-              <button class="cat-acc-head" @click="toggleCat(cat.slug)">
-                <span class="direction-ico" :style="{ background: cat.color + '1f', color: cat.color }">{{ cat.icon }}</span>
-                <span class="cat-acc-main">
-                  <span class="cat-acc-title">{{ cat.title }}</span>
-                  <span class="cat-acc-desc">{{ cat.desc }}</span>
-                </span>
-                <span v-if="catHasGoal(cat)" class="cat-acc-badge">✓ цель здесь</span>
-                <span class="cat-acc-caret">{{ isExpanded(cat.slug) ? '▾' : '▸' }}</span>
-              </button>
-
-              <div v-if="isExpanded(cat.slug)" class="sub-list">
-                <div v-for="sub in cat.subcategories" :key="sub.id" class="sub-row"
-                     :class="{ current: isCurrent(cat, sub) }">
-                  <div class="sub-main">
-                    <span class="sub-title">{{ sub.title }}</span>
-                    <span class="sub-desc">{{ sub.description }}</span>
-                  </div>
-                  <div class="sub-actions">
-                    <button class="chip" :class="{ on: isCurrent(cat, sub) }"
-                            :disabled="savingDirection" @click="chooseSub(cat, sub)">
-                      {{ isCurrent(cat, sub) ? '✓ Учу сейчас' : 'Учу сейчас' }}
-                    </button>
-                    <button class="chip chip-plan" :class="{ on: isPlanned(subPath(cat, sub)) }"
-                            :disabled="savingPlanned" @click="togglePlanned(subPath(cat, sub))">
-                      {{ isPlanned(subPath(cat, sub)) ? '✓ В плане' : '+ В план' }}
-                    </button>
-                  </div>
-
-                  <!-- технологии и курсы выбранного направления -->
-                  <div v-if="isCurrent(cat, sub)" class="tech-block">
-                    <p v-if="!sub.technologies || !sub.technologies.length" class="goal-hint">
-                      Курсы по этому направлению скоро появятся.
-                    </p>
-                    <div v-for="tech in sub.technologies" :key="tech.id" class="tech">
-                      <div class="tech-head">
-                        <span class="tech-title">{{ tech.title }}</span>
-                        <span class="tech-desc">{{ tech.description }}</span>
-                      </div>
-                      <ul class="course-list">
-                        <li v-for="c in tech.courses" :key="c.id" class="course">
-                          <span class="course-title">
-                            <a v-if="c.url" :href="c.url" target="_blank" rel="noopener">{{ c.title }}</a>
-                            <template v-else>{{ c.title }}</template>
-                          </span>
-                          <span class="course-meta">
-                            <span class="course-author">{{ c.author }}</span>
-                            <span v-if="c.duration" class="course-dur">· {{ c.duration }}</span>
-                          </span>
-                          <span v-if="c.description" class="course-desc">{{ c.description }}</span>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </section>

@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from .config import TAGLINE
 from .db import get_session
-from .models import Category, Subcategory, Technology
+from .models import Category, Course, Subcategory, Technology
 
 router = APIRouter(prefix="/api", tags=["catalog"])
 
@@ -16,6 +16,7 @@ def course_dict(c) -> dict:
         "id": c.id, "title": c.title, "author": c.author,
         "duration": c.duration, "url": c.url,
         "description": c.description, "position": c.position,
+        "rating": c.rating, "reviews_count": c.reviews_count,
     }
 
 
@@ -80,3 +81,72 @@ async def get_category(slug: str, db: AsyncSession = Depends(get_session)) -> di
     if not cat:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Категория не найдена")
     return cat_dict(cat)
+
+
+async def _load_course_with_tree(course_id: int, db: AsyncSession, *, lessons=False, reviews=False):
+    opts = [
+        selectinload(Course.technology)
+        .selectinload(Technology.subcategory)
+        .selectinload(Subcategory.category)
+    ]
+    if lessons:
+        opts.append(selectinload(Course.lessons))
+    if reviews:
+        opts.append(selectinload(Course.reviews))
+    course = await db.scalar(select(Course).where(Course.id == course_id).options(*opts))
+    if not course:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Курс не найден")
+    return course
+
+
+def _course_header(course) -> dict:
+    """Common course header fields + breadcrumb slugs/titles."""
+    tech = course.technology
+    sub = tech.subcategory if tech else None
+    cat = sub.category if sub else None
+    return {
+        "id": course.id,
+        "title": course.title,
+        "author": course.author,
+        "duration": course.duration,
+        "url": course.url,
+        "description": course.description,
+        "rating": course.rating,
+        "reviews_count": course.reviews_count,
+        "technology": tech.title if tech else None,
+        "technology_slug": tech.slug if tech else None,
+        "subcategory": sub.title if sub else None,
+        "subcategory_slug": sub.slug if sub else None,
+        "category": (
+            {"title": cat.title, "slug": cat.slug, "color": cat.color, "icon": cat.icon}
+            if cat
+            else None
+        ),
+    }
+
+
+@router.get("/courses/{course_id}")
+async def course_detail(course_id: int, db: AsyncSession = Depends(get_session)) -> dict:
+    """Full course info plus its learning plan (lessons), for the course page."""
+    course = await _load_course_with_tree(course_id, db, lessons=True)
+    data = _course_header(course)
+    data["lessons"] = [
+        {
+            "id": l.id, "title": l.title, "description": l.description,
+            "duration": l.duration, "position": l.position,
+        }
+        for l in course.lessons
+    ]
+    return data
+
+
+@router.get("/courses/{course_id}/reviews")
+async def course_reviews(course_id: int, db: AsyncSession = Depends(get_session)) -> dict:
+    """Course header info plus its text reviews (for the dedicated reviews page)."""
+    course = await _load_course_with_tree(course_id, db, reviews=True)
+    data = _course_header(course)
+    data["reviews"] = [
+        {"id": r.id, "author": r.author, "rating": r.rating, "text": r.text}
+        for r in course.reviews
+    ]
+    return data

@@ -1,5 +1,5 @@
-// Vue 3 SPA (CDN global build). Skeleton only: state is local placeholder
-// data, the chat hits the stub /api/chat endpoint. No mode/XP logic yet.
+// Vue 3 SPA (CDN global build). Portal shell: dashboard + personal info.
+// The goal flow (category → … → course) now lives on its own pages (/goal, /course/…).
 const { createApp, nextTick } = Vue;
 
 createApp({
@@ -11,12 +11,8 @@ createApp({
       // meta (loaded from /api/meta)
       goal: "",
       commands: [],
-      // IT directions (loaded from /api/categories)
-      categories: [],
-      savingDirection: false,
-      savingPlanned: false,
-      // expanded category slugs in the goal drill-down
-      expanded: [],
+      // the chosen goal course, loaded when the user has one
+      goalCourse: null,
       // gamification placeholders
       xp: 0,
       level: 0,
@@ -62,21 +58,6 @@ createApp({
       const TARGET_XP = 50 * 100;
       return Math.min(100, Math.round((this.xp / TARGET_XP) * 100));
     },
-    chosenSub() {
-      // Resolve the current goal (a "category/subcategory" path) to objects.
-      if (!this.user || !this.user.direction) return null;
-      for (const cat of this.categories) {
-        for (const sub of cat.subcategories || []) {
-          if (`${cat.slug}/${sub.slug}` === this.user.direction) return { cat, sub };
-        }
-      }
-      return null;
-    },
-    goalText() {
-      // Personal goal derived from the chosen subcategory; null prompts a choice.
-      const cs = this.chosenSub;
-      return cs ? `Освоить «${cs.sub.title}» (${cs.cat.title})` : null;
-    },
     initials() {
       const src = (this.user && (this.user.full_name || this.user.name)) || "";
       const parts = src.trim().split(/\s+/).filter(Boolean);
@@ -86,11 +67,9 @@ createApp({
     },
     achievements() {
       const u = this.user || {};
-      const planned = u.planned || [];
       return [
         { ico: "🐣", title: "Начало пути", desc: "Аккаунт создан", unlocked: true },
-        { ico: "🧭", title: "Направление выбрано", desc: "Выбрано, что учите сейчас", unlocked: !!u.direction },
-        { ico: "🗺️", title: "Есть план", desc: "Добавлено направление в план", unlocked: planned.length > 0 },
+        { ico: "🎯", title: "Цель выбрана", desc: "Выбран курс-цель", unlocked: !!u.goal_course_id },
         { ico: "⭐", title: "Первые XP", desc: "Набрано 10+ XP", unlocked: (u.xp || 0) >= 10 },
         { ico: "🏅", title: "Уровень 1", desc: "Достигнут 1-й уровень", unlocked: (u.level || 0) >= 1 },
         { ico: "📝", title: "О себе", desc: "Заполнена информация о себе", unlocked: !!u.bio },
@@ -123,12 +102,14 @@ createApp({
       this.goal = "Стать Python-разработчиком";
     }
 
-    try {
-      const res = await fetch("/api/categories");
-      const data = await res.json();
-      this.categories = data.categories;
-    } catch (e) {
-      this.categories = [];
+    // Resolve the chosen goal course (for the sidebar card), if any.
+    if (this.user.goal_course_id) {
+      try {
+        const res = await fetch(`/api/courses/${this.user.goal_course_id}`);
+        if (res.ok) this.goalCourse = await res.json();
+      } catch (e) {
+        /* ignore */
+      }
     }
     this.ready = true;
   },
@@ -150,52 +131,6 @@ createApp({
       this.info.birth_date = this.user.birth_date || "";
       this.info.bio = this.user.bio || "";
       this.view = "info";
-    },
-    openGoal() {
-      this.menuOpen = false;
-      this.view = "goal";
-      // Auto-expand the category that holds the current goal, if any.
-      const cs = this.chosenSub;
-      if (cs && !this.expanded.includes(cs.cat.slug)) this.expanded.push(cs.cat.slug);
-    },
-    subPath(cat, sub) {
-      return `${cat.slug}/${sub.slug}`;
-    },
-    isExpanded(slug) {
-      return this.expanded.includes(slug);
-    },
-    toggleCat(slug) {
-      this.expanded = this.expanded.includes(slug)
-        ? this.expanded.filter((s) => s !== slug)
-        : [...this.expanded, slug];
-    },
-    catHasGoal(cat) {
-      return (cat.subcategories || []).some((s) => this.isCurrent(cat, s));
-    },
-    isCurrent(cat, sub) {
-      return this.user.direction === this.subPath(cat, sub);
-    },
-    isPlanned(path) {
-      return (this.user.planned || []).includes(path);
-    },
-    async togglePlanned(path) {
-      const current = this.user.planned || [];
-      const next = current.includes(path)
-        ? current.filter((s) => s !== path)
-        : [...current, path];
-      this.savingPlanned = true;
-      try {
-        const res = await fetch("/api/auth/profile", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ planned: next }),
-        });
-        if (res.ok) this.user = await res.json();
-      } catch (e) {
-        /* ignore */
-      } finally {
-        this.savingPlanned = false;
-      }
     },
     async uploadAvatar(event) {
       const file = event.target.files && event.target.files[0];
@@ -265,24 +200,6 @@ createApp({
     async logout() {
       await fetch("/api/auth/logout", { method: "POST" });
       window.location.href = "/";
-    },
-    async chooseSub(cat, sub) {
-      // Toggle: clicking the current goal again clears it.
-      const path = this.subPath(cat, sub);
-      const next = this.isCurrent(cat, sub) ? null : path;
-      this.savingDirection = true;
-      try {
-        const res = await fetch("/api/auth/profile", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ direction: next }),
-        });
-        if (res.ok) this.user = await res.json();
-      } catch (e) {
-        /* ignore */
-      } finally {
-        this.savingDirection = false;
-      }
     },
     async send() {
       const text = this.draft.trim();

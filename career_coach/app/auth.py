@@ -17,11 +17,12 @@ from fastapi import (
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from . import mailer
 from .config import ACCESS_TOKEN_EXPIRE_MINUTES, ADMIN_EMAILS, APP_BASE_URL, COOKIE_NAME
 from .db import get_session
-from .models import Category, Subcategory, User
+from .models import Category, Course, Subcategory, Technology, User
 from .security import (
     create_access_token,
     create_reset_token,
@@ -74,6 +75,8 @@ class UserOut(BaseModel):
     is_admin: bool = False
     direction: str | None = None
     planned: list[str] = []
+    goal_technology_id: int | None = None
+    goal_course_id: int | None = None
     full_name: str | None = None
     birth_date: date | None = None
     bio: str | None = None
@@ -83,6 +86,8 @@ class UserOut(BaseModel):
 class ProfilePayload(BaseModel):
     direction: str | None = None
     planned: list[str] | None = None
+    goal_technology_id: int | None = None
+    goal_course_id: int | None = None
     full_name: str | None = Field(default=None, max_length=200)
     birth_date: date | None = None
     bio: str | None = Field(default=None, max_length=2000)
@@ -96,6 +101,60 @@ async def _valid_direction_paths(db: AsyncSession) -> set[str]:
         )
     )
     return {f"{cat}/{sub}" for cat, sub in rows.all()}
+
+
+async def _apply_goal_technology(db: AsyncSession, user: User, tech_id: int | None) -> None:
+    """Set the chosen technology; it must belong to the user's goal subcategory."""
+    if tech_id is None:
+        user.goal_technology_id = None
+        user.goal_course_id = None
+        return
+    if not user.direction:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Сначала выберите направление")
+    # Resolve the technology's subcategory path and compare with the goal.
+    row = (
+        await db.execute(
+            select(Category.slug, Subcategory.slug)
+            .join(Subcategory, Subcategory.category_id == Category.id)
+            .join(Technology, Technology.subcategory_id == Subcategory.id)
+            .where(Technology.id == tech_id)
+        )
+    ).first()
+    if not row or f"{row[0]}/{row[1]}" != user.direction:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Технология не из выбранного направления")
+    if tech_id != user.goal_technology_id:
+        user.goal_course_id = None  # switching technology drops the course
+    user.goal_technology_id = tech_id
+
+
+async def _apply_goal_course(db: AsyncSession, user: User, course_id: int | None) -> None:
+    """Set the chosen course as the goal, deriving technology + direction from it.
+
+    Clearing (None) drops the whole goal (course, technology and direction).
+    """
+    if course_id is None:
+        user.goal_course_id = None
+        user.goal_technology_id = None
+        user.direction = None
+        return
+    course = await db.scalar(
+        select(Course)
+        .where(Course.id == course_id)
+        .options(
+            selectinload(Course.technology)
+            .selectinload(Technology.subcategory)
+            .selectinload(Subcategory.category)
+        )
+    )
+    if not course:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Курс не найден")
+    tech = course.technology
+    sub = tech.subcategory if tech else None
+    cat = sub.category if sub else None
+    user.goal_course_id = course.id
+    user.goal_technology_id = course.technology_id
+    if cat and sub:
+        user.direction = f"{cat.slug}/{sub.slug}"
 
 
 def _set_session_cookie(response: Response, user_id: int) -> None:
@@ -244,6 +303,10 @@ async def update_profile(
         # null clears the goal; otherwise it must be a known subcategory path
         if fields["direction"] is not None and fields["direction"] not in valid:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Неизвестное направление")
+        if fields["direction"] != user.direction:
+            # changing the subcategory invalidates the chosen technology/course
+            user.goal_technology_id = None
+            user.goal_course_id = None
         user.direction = fields["direction"]
     if "planned" in fields:
         planned = fields["planned"] or []
@@ -251,6 +314,10 @@ async def update_profile(
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Неизвестное направление в плане")
         # dedupe, preserve order
         user.planned = list(dict.fromkeys(planned))
+    if "goal_technology_id" in fields:
+        await _apply_goal_technology(db, user, fields["goal_technology_id"])
+    if "goal_course_id" in fields:
+        await _apply_goal_course(db, user, fields["goal_course_id"])
     if "full_name" in fields:
         user.full_name = fields["full_name"]
     if "birth_date" in fields:

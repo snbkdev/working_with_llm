@@ -15,6 +15,18 @@ SEED_CATEGORIES = [
                 "description": "Синтаксис, ООП, стандартная библиотека",
                 "technologies": [
                     {
+                        "slug": "python-basics", "title": "Python (основы языка)",
+                        "description": "Изучение самого языка без фреймворков",
+                        "courses": [
+                            {"title": "Python с нуля до Junior", "author": "Сергей Балакирев",
+                             "duration": "30 ч", "url": "", "description": "Синтаксис, ООП, проекты"},
+                            {"title": "Поколение Python: курс для начинающих", "author": "Тимур Гуев",
+                             "duration": "20 ч", "url": "", "description": "Фундамент языка, много практики"},
+                            {"title": "Python Pro: продвинутый уровень", "author": "Артём Егоров",
+                             "duration": "25 ч", "url": "", "description": "Декораторы, генераторы, асинхронность"},
+                        ],
+                    },
+                    {
                         "slug": "fastapi", "title": "FastAPI",
                         "description": "Современный async-фреймворк для API",
                         "courses": [
@@ -52,6 +64,16 @@ SEED_CATEGORIES = [
                 "slug": "java", "title": "Java", "description": "JVM, ООП, экосистема",
                 "technologies": [
                     {
+                        "slug": "java-basics", "title": "Java (основы языка)",
+                        "description": "Изучение самого языка без фреймворков",
+                        "courses": [
+                            {"title": "Java для начинающих", "author": "Сергей Кахоров",
+                             "duration": "28 ч", "url": "", "description": "Синтаксис, ООП, коллекции"},
+                            {"title": "Программирование на Java", "author": "Тимофей Хирьянов",
+                             "duration": "22 ч", "url": "", "description": "Академический курс с практикой"},
+                        ],
+                    },
+                    {
                         "slug": "spring-boot", "title": "Spring Boot",
                         "description": "Промышленный фреймворк для Java",
                         "courses": [
@@ -78,8 +100,54 @@ SEED_CATEGORIES = [
                     },
                 ],
             },
-            {"slug": "csharp", "title": "C#", "description": ".NET и язык C#"},
-            {"slug": "php", "title": "PHP", "description": "Веб-бэкенд на PHP"},
+            {
+                "slug": "csharp", "title": "C#", "description": ".NET и язык C#",
+                "technologies": [
+                    {
+                        "slug": "csharp-basics", "title": "C# (основы языка)",
+                        "description": "Изучение самого языка без фреймворков",
+                        "courses": [
+                            {"title": "C# Basics для начинающих", "author": "Mosh Hamedani",
+                             "duration": "10 ч", "url": "", "description": "Синтаксис и основы ООП"},
+                            {"title": "Программирование на C#", "author": "Дмитрий Охрименко",
+                             "duration": "18 ч", "url": "", "description": "Язык от азов до практики"},
+                        ],
+                    },
+                    {
+                        "slug": "aspnet", "title": "ASP.NET Core",
+                        "description": "Веб-фреймворк на .NET",
+                        "courses": [
+                            {"title": "C# и ASP.NET Core с нуля", "author": "Сергей Нежинский",
+                             "duration": "16 ч", "url": "", "description": "От синтаксиса до веб-API"},
+                            {"title": "C# Advanced", "author": "Mosh Hamedani",
+                             "duration": "9 ч", "url": "", "description": "Глубокое погружение в C#"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "slug": "php", "title": "PHP", "description": "Веб-бэкенд на PHP",
+                "technologies": [
+                    {
+                        "slug": "php-basics", "title": "PHP (основы языка)",
+                        "description": "Изучение самого языка без фреймворков",
+                        "courses": [
+                            {"title": "PHP для начинающих", "author": "Юрий Прудник",
+                             "duration": "14 ч", "url": "", "description": "Синтаксис, формы, работа с БД"},
+                        ],
+                    },
+                    {
+                        "slug": "laravel", "title": "Laravel",
+                        "description": "Самый популярный PHP-фреймворк",
+                        "courses": [
+                            {"title": "Laravel с нуля", "author": "Brad Schiff",
+                             "duration": "12 ч", "url": "", "description": "MVC, Eloquent, Blade"},
+                            {"title": "PHP и Laravel на практике", "author": "Виктор Грязин",
+                             "duration": "10 ч", "url": "", "description": "Реальные проекты"},
+                        ],
+                    },
+                ],
+            },
         ],
     },
     {
@@ -116,16 +184,66 @@ SEED_CATEGORIES = [
                     },
                 ],
             },
-            {"slug": "db-design", "title": "Проектирование БД", "description": "Нормализация, схемы, связи"},
-            {"slug": "db-optimization", "title": "Оптимизация", "description": "Индексы, планы запросов"},
+            {
+                "slug": "db-design", "title": "Проектирование БД",
+                "description": "Нормализация, схемы, связи",
+                "technologies": [
+                    {
+                        "slug": "data-modeling", "title": "Моделирование данных",
+                        "description": "Нормальные формы, ER-диаграммы",
+                        "courses": [
+                            {"title": "Проектирование баз данных", "author": "Илья Космодемьянский",
+                             "duration": "7 ч", "url": "", "description": "Схемы, связи, нормализация"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "slug": "db-optimization", "title": "Оптимизация",
+                "description": "Индексы, планы запросов",
+                "technologies": [
+                    {
+                        "slug": "query-tuning", "title": "Оптимизация запросов",
+                        "description": "Индексы, EXPLAIN, планы выполнения",
+                        "courses": [
+                            {"title": "SQL Performance Explained", "author": "Markus Winand",
+                             "duration": "8 ч", "url": "", "description": "Как работают индексы"},
+                        ],
+                    },
+                ],
+            },
         ],
     },
     {
         "slug": "frontend", "title": "Frontend", "icon": "🎨", "color": "#f59e0b",
         "description": "Интерфейсы в браузере",
         "subcategories": [
-            {"slug": "html", "title": "HTML", "description": "Разметка и семантика"},
-            {"slug": "css", "title": "CSS", "description": "Стили, верстка, адаптив"},
+            {
+                "slug": "html", "title": "HTML", "description": "Разметка и семантика",
+                "technologies": [
+                    {
+                        "slug": "html5", "title": "HTML5",
+                        "description": "Семантика, формы, доступность",
+                        "courses": [
+                            {"title": "HTML и CSS с нуля", "author": "Владилен Минин",
+                             "duration": "6 ч", "url": "", "description": "Базовая верстка страниц"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "slug": "css", "title": "CSS", "description": "Стили, верстка, адаптив",
+                "technologies": [
+                    {
+                        "slug": "css3", "title": "CSS / Flexbox / Grid",
+                        "description": "Современная верстка и адаптив",
+                        "courses": [
+                            {"title": "Современный CSS", "author": "Kevin Powell",
+                             "duration": "9 ч", "url": "", "description": "Flexbox, Grid, анимации"},
+                        ],
+                    },
+                ],
+            },
             {
                 "slug": "javascript", "title": "JavaScript",
                 "description": "Язык, DOM, события",
@@ -206,14 +324,46 @@ SEED_CATEGORIES = [
                     },
                 ],
             },
-            {"slug": "deep-learning", "title": "Нейросети", "description": "Глубокое обучение"},
+            {
+                "slug": "deep-learning", "title": "Нейросети", "description": "Глубокое обучение",
+                "technologies": [
+                    {
+                        "slug": "pytorch", "title": "PyTorch",
+                        "description": "Глубокое обучение на PyTorch",
+                        "courses": [
+                            {"title": "Глубокое обучение на PyTorch", "author": "Сергей Николенко",
+                             "duration": "14 ч", "url": "", "description": "Сети, обучение, практика"},
+                        ],
+                    },
+                    {
+                        "slug": "tensorflow", "title": "TensorFlow",
+                        "description": "Нейросети на TensorFlow/Keras",
+                        "courses": [
+                            {"title": "TensorFlow Developer", "author": "Daniel Bourke",
+                             "duration": "20 ч", "url": "", "description": "От основ до продакшена"},
+                        ],
+                    },
+                ],
+            },
         ],
     },
     {
         "slug": "devops", "title": "DevOps", "icon": "⚙️", "color": "#ef4444",
         "description": "Инфраструктура и автоматизация",
         "subcategories": [
-            {"slug": "linux", "title": "Linux", "description": "Командная строка, основы"},
+            {
+                "slug": "linux", "title": "Linux", "description": "Командная строка, основы",
+                "technologies": [
+                    {
+                        "slug": "linux-admin", "title": "Linux",
+                        "description": "CLI, права, процессы, bash",
+                        "courses": [
+                            {"title": "Linux для начинающих", "author": "Дмитрий Кудрявцев",
+                             "duration": "10 ч", "url": "", "description": "Терминал, файлы, службы"},
+                        ],
+                    },
+                ],
+            },
             {
                 "slug": "docker", "title": "Docker", "description": "Контейнеризация",
                 "technologies": [
@@ -229,16 +379,65 @@ SEED_CATEGORIES = [
                     },
                 ],
             },
-            {"slug": "cicd", "title": "CI/CD", "description": "Пайплайны сборки и доставки"},
-            {"slug": "cloud", "title": "Облака", "description": "AWS, GCP, инфраструктура"},
+            {
+                "slug": "cicd", "title": "CI/CD", "description": "Пайплайны сборки и доставки",
+                "technologies": [
+                    {
+                        "slug": "github-actions", "title": "GitHub Actions",
+                        "description": "Автоматизация сборки и деплоя",
+                        "courses": [
+                            {"title": "CI/CD с GitHub Actions", "author": "Антон Брайчук",
+                             "duration": "6 ч", "url": "", "description": "Пайплайны от и до"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "slug": "cloud", "title": "Облака", "description": "AWS, GCP, инфраструктура",
+                "technologies": [
+                    {
+                        "slug": "aws", "title": "AWS",
+                        "description": "Облачная инфраструктура Amazon",
+                        "courses": [
+                            {"title": "AWS для разработчиков", "author": "Stephane Maarek",
+                             "duration": "18 ч", "url": "", "description": "EC2, S3, Lambda и др."},
+                        ],
+                    },
+                ],
+            },
         ],
     },
     {
         "slug": "mobile", "title": "Мобильная разработка", "icon": "📱", "color": "#ec4899",
         "description": "Приложения для смартфонов",
         "subcategories": [
-            {"slug": "android", "title": "Android (Kotlin)", "description": "Нативная Android-разработка"},
-            {"slug": "ios", "title": "iOS (Swift)", "description": "Нативная iOS-разработка"},
+            {
+                "slug": "android", "title": "Android (Kotlin)",
+                "description": "Нативная Android-разработка",
+                "technologies": [
+                    {
+                        "slug": "kotlin-android", "title": "Kotlin / Jetpack Compose",
+                        "description": "Современная Android-разработка",
+                        "courses": [
+                            {"title": "Android-разработка на Kotlin", "author": "Денис Неклюдов",
+                             "duration": "20 ч", "url": "", "description": "Compose, архитектура, API"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "slug": "ios", "title": "iOS (Swift)", "description": "Нативная iOS-разработка",
+                "technologies": [
+                    {
+                        "slug": "swift-ios", "title": "Swift / SwiftUI",
+                        "description": "Приложения для iOS на Swift",
+                        "courses": [
+                            {"title": "iOS-разработка на Swift", "author": "Paul Hudson",
+                             "duration": "22 ч", "url": "", "description": "SwiftUI, 100 дней практики"},
+                        ],
+                    },
+                ],
+            },
             {
                 "slug": "flutter", "title": "Flutter", "description": "Кроссплатформа на Dart",
                 "technologies": [
@@ -271,15 +470,52 @@ SEED_CATEGORIES = [
                     },
                 ],
             },
-            {"slug": "unreal", "title": "Unreal Engine", "description": "Движок Unreal, C++/Blueprints"},
-            {"slug": "game-design", "title": "Game Design", "description": "Геймдизайн и механики"},
+            {
+                "slug": "unreal", "title": "Unreal Engine",
+                "description": "Движок Unreal, C++/Blueprints",
+                "technologies": [
+                    {
+                        "slug": "ue5", "title": "Unreal Engine 5",
+                        "description": "Blueprints, C++, графика",
+                        "courses": [
+                            {"title": "Unreal Engine 5 с нуля", "author": "GameDev tv",
+                             "duration": "16 ч", "url": "", "description": "Механики и уровни"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "slug": "game-design", "title": "Game Design", "description": "Геймдизайн и механики",
+                "technologies": [
+                    {
+                        "slug": "gd-basics", "title": "Основы геймдизайна",
+                        "description": "Механики, баланс, нарратив",
+                        "courses": [
+                            {"title": "Геймдизайн: теория и практика", "author": "Сергей Гимельрейх",
+                             "duration": "8 ч", "url": "", "description": "Как проектировать игры"},
+                        ],
+                    },
+                ],
+            },
         ],
     },
     {
         "slug": "ui-ux", "title": "UI/UX-дизайн", "icon": "🎯", "color": "#f43f5e",
         "description": "Проектирование интерфейсов",
         "subcategories": [
-            {"slug": "ux-basics", "title": "Основы UX", "description": "Исследования, сценарии"},
+            {
+                "slug": "ux-basics", "title": "Основы UX", "description": "Исследования, сценарии",
+                "technologies": [
+                    {
+                        "slug": "ux-research", "title": "UX-исследования",
+                        "description": "Сценарии, интервью, юзабилити",
+                        "courses": [
+                            {"title": "Основы UX/UI дизайна", "author": "Эльдар Ишмухаметов",
+                             "duration": "9 ч", "url": "", "description": "Исследования и принципы"},
+                        ],
+                    },
+                ],
+            },
             {
                 "slug": "figma", "title": "Figma", "description": "Макеты и компоненты",
                 "technologies": [
@@ -293,7 +529,20 @@ SEED_CATEGORIES = [
                     },
                 ],
             },
-            {"slug": "prototyping", "title": "Прототипирование", "description": "Интерактивные прототипы"},
+            {
+                "slug": "prototyping", "title": "Прототипирование",
+                "description": "Интерактивные прототипы",
+                "technologies": [
+                    {
+                        "slug": "prototyping-tools", "title": "Прототипирование",
+                        "description": "Интерактив в Figma/ProtoPie",
+                        "courses": [
+                            {"title": "Интерактивные прототипы", "author": "Михаил Греков",
+                             "duration": "5 ч", "url": "", "description": "Анимация и переходы"},
+                        ],
+                    },
+                ],
+            },
         ],
     },
     {
@@ -313,16 +562,66 @@ SEED_CATEGORIES = [
                     },
                 ],
             },
-            {"slug": "texturing", "title": "Текстурирование", "description": "Материалы и текстуры"},
-            {"slug": "rendering", "title": "Рендеринг", "description": "Свет, камеры, рендер"},
+            {
+                "slug": "texturing", "title": "Текстурирование", "description": "Материалы и текстуры",
+                "technologies": [
+                    {
+                        "slug": "substance", "title": "Substance Painter",
+                        "description": "PBR-текстуры и материалы",
+                        "courses": [
+                            {"title": "Текстурирование в Substance Painter", "author": "FlippedNormals",
+                             "duration": "10 ч", "url": "", "description": "Материалы для 3D-моделей"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "slug": "rendering", "title": "Рендеринг", "description": "Свет, камеры, рендер",
+                "technologies": [
+                    {
+                        "slug": "blender-render", "title": "Рендеринг в Blender",
+                        "description": "Свет, камеры, Cycles/Eevee",
+                        "courses": [
+                            {"title": "Рендер и свет в Blender", "author": "Blender Guru",
+                             "duration": "8 ч", "url": "", "description": "Освещение и финальный рендер"},
+                        ],
+                    },
+                ],
+            },
         ],
     },
     {
         "slug": "qa", "title": "QA / Тестирование", "icon": "🧪", "color": "#22c55e",
         "description": "Контроль качества ПО",
         "subcategories": [
-            {"slug": "qa-basics", "title": "Основы тестирования", "description": "Теория, виды тестов"},
-            {"slug": "manual", "title": "Ручное тестирование", "description": "Тест-кейсы, баг-репорты"},
+            {
+                "slug": "qa-basics", "title": "Основы тестирования",
+                "description": "Теория, виды тестов",
+                "technologies": [
+                    {
+                        "slug": "testing-theory", "title": "Теория тестирования",
+                        "description": "Виды тестов, процессы QA",
+                        "courses": [
+                            {"title": "Основы тестирования ПО", "author": "Святослав Куликов",
+                             "duration": "7 ч", "url": "", "description": "Фундамент для старта в QA"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "slug": "manual", "title": "Ручное тестирование",
+                "description": "Тест-кейсы, баг-репорты",
+                "technologies": [
+                    {
+                        "slug": "manual-testing", "title": "Ручное тестирование",
+                        "description": "Тест-кейсы, чек-листы, баг-репорты",
+                        "courses": [
+                            {"title": "Ручное тестирование с нуля", "author": "Артём Русов",
+                             "duration": "9 ч", "url": "", "description": "Практика составления тестов"},
+                        ],
+                    },
+                ],
+            },
             {
                 "slug": "automation", "title": "Автотесты", "description": "Selenium, Playwright",
                 "technologies": [
@@ -336,7 +635,19 @@ SEED_CATEGORIES = [
                     },
                 ],
             },
-            {"slug": "api-testing", "title": "API-тестирование", "description": "Postman, REST"},
+            {
+                "slug": "api-testing", "title": "API-тестирование", "description": "Postman, REST",
+                "technologies": [
+                    {
+                        "slug": "postman", "title": "Postman",
+                        "description": "Тестирование REST API",
+                        "courses": [
+                            {"title": "Тестирование API", "author": "Валентин Яковенко",
+                             "duration": "6 ч", "url": "", "description": "Postman, коллекции, автотесты"},
+                        ],
+                    },
+                ],
+            },
         ],
     },
 ]
