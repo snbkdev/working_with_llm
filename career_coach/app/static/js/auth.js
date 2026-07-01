@@ -9,7 +9,21 @@ createApp({
       error: "",
       loading: false,
       sent: false, // forgot-password confirmation
+      ready: false, // show the form only after the auth check finishes
     };
+  },
+  async mounted() {
+    // If already logged in, skip the login page and go straight to the portal.
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        window.location.href = "/app";
+        return;
+      }
+    } catch (e) {
+      // Network error → fall through and show the form.
+    }
+    this.ready = true;
   },
   computed: {
     submitLabel() {

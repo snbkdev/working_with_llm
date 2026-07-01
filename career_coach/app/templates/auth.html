@@ -8,8 +8,8 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
 <body class="auth-body">
-  <div id="app">
-    <div class="auth-card">
+  <div id="app" v-cloak>
+    <div class="auth-card" v-if="ready">
       <div class="auth-brand">
         <span class="brand-logo">🦆</span>
         <span class="brand-name">Duckie</span>
