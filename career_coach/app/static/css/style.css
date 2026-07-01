@@ -1,26 +1,30 @@
 :root {
-  /* Тёмная тема: графитово-фиолетовый фон, фиолетовый акцент, серебристый текст */
-  --bg: #3b354e;
-  --surface: #493f61;
-  --surface-2: #554b70;
-  --border: #695f86;
-  --border-silver: #7b7197;
-  --text: #f9f8fd;
-  --muted: #ccc8dd;
-  --silver: #e8e6f1;
-  --silver-dim: #bbb7cd;
-  --accent: #c489ff;
-  --accent-2: #a67bf5;
-  --accent-soft: #554a75;
-  --coach: #4c4368;
-  --ok: #3ddb84;
+  /* Светлая тема: серебристый фон, белые панели, чёрный текст, фиолетовый акцент */
+  --bg: #e6e7ee;            /* серебристый фон страницы */
+  --surface: #ffffff;        /* белые панели/карточки */
+  --surface-2: #f1f2f7;      /* поля ввода и приподнятые блоки */
+  --border: #c4c7d4;         /* заметная серебристая линия вокруг рамок */
+  --border-silver: #b3b7c6;
+  --text: #17161f;           /* почти чёрный текст */
+  --muted: #6a6a7c;
+  --silver: #b7bacb;
+  --silver-dim: #9497aa;
+  --accent: #7c3aed;         /* фиолетовый */
+  --accent-2: #6d28d9;
+  --accent-soft: #efe9fe;    /* светло-фиолетовый для ховеров/актив */
+  --coach: #f3f0fe;
+  --ok: #16a34a;
   --radius: 12px;
+  /* Тёмный сайдбар: чёрный + фиолетовый */
+  --sidebar-bg: #17151f;
+  --sidebar-text: #eceaf5;
+  --sidebar-muted: #9a97b0;
 }
 
 * { box-sizing: border-box; }
 [v-cloak] { display: none; }
 
-/* Тёмные поля ввода по умолчанию */
+/* Поля ввода */
 input, textarea, select { color: var(--text); background: var(--surface-2); }
 input::placeholder, textarea::placeholder { color: var(--silver-dim); opacity: 1; }
 input:-webkit-autofill { -webkit-text-fill-color: var(--text); -webkit-box-shadow: 0 0 0 40px var(--surface-2) inset; caret-color: var(--text); }
@@ -29,27 +33,43 @@ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background:
-    radial-gradient(900px 500px at 12% -8%, rgba(168,85,247,.14), transparent 60%),
-    radial-gradient(760px 460px at 92% 4%, rgba(124,58,237,.12), transparent 62%),
+    radial-gradient(900px 520px at 12% -10%, rgba(124,58,237,.07), transparent 60%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
 }
 
-/* Topbar */
+/* Topbar — тёмная шапка: смесь чёрного и фиолетового */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 24px;
-  background: linear-gradient(180deg, var(--surface-2), var(--surface));
-  border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 0 rgba(201,198,216,.06), 0 6px 24px rgba(0,0,0,.4);
+  background: linear-gradient(110deg, #17151f 0%, #241640 55%, #3a1e6b 100%);
+  border-bottom: 1px solid #2a2740;
+  box-shadow: 0 2px 14px rgba(23,21,31,.22);
 }
 .brand { display: flex; align-items: baseline; gap: 8px; }
 .brand-logo { font-size: 24px; }
-.brand-name { font-weight: 700; font-size: 18px; background: linear-gradient(90deg, var(--silver), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand-name { font-weight: 700; font-size: 18px; background: linear-gradient(90deg, var(--text), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .brand-sub { color: var(--muted); font-size: 13px; }
+
+/* Светлый текст и акценты поверх тёмной шапки (не затрагивает выпадающее меню) */
+.topbar .brand-name { background: linear-gradient(90deg, #ffffff, #c4a2ff); -webkit-background-clip: text; background-clip: text; }
+.topbar .brand-sub { color: rgba(255,255,255,.6); }
+.topbar .streak,
+.topbar .rank-level,
+.topbar .xp-text,
+.topbar .profile-name { color: #eceaf5; }
+.topbar .profile-caret { color: rgba(255,255,255,.6); }
+.topbar .xp-bar { background: rgba(255,255,255,.16); }
+.topbar .profile:hover,
+.topbar .profile.active { background: rgba(124,58,237,.32); }
+.topbar .topbar-back { background: rgba(255,255,255,.08); color: #eceaf5; border-color: rgba(255,255,255,.16); }
+.topbar .topbar-back:hover { background: rgba(124,58,237,.35); border-color: var(--accent); }
+.topbar .top-tab { color: rgba(255,255,255,.7); }
+.topbar .top-tab:hover { background: rgba(124,58,237,.22); color: #fff; }
+.topbar .top-tab.on { background: rgba(124,58,237,.4); color: #fff; }
 
 .topbar-right { display: flex; align-items: center; gap: 20px; }
 .streak { font-size: 14px; }
@@ -162,9 +182,8 @@ body {
 
 /* Landing page */
 .landing-body { background:
-  radial-gradient(900px 460px at 15% -5%, rgba(168,85,247,.22), transparent 60%),
-  radial-gradient(820px 440px at 90% 5%, rgba(124,58,237,.20), transparent 62%),
-  radial-gradient(700px 500px at 50% 120%, rgba(201,198,216,.06), transparent 60%),
+  radial-gradient(900px 460px at 15% -5%, rgba(124,58,237,.10), transparent 60%),
+  radial-gradient(820px 440px at 90% 5%, rgba(124,58,237,.08), transparent 62%),
   var(--bg); }
 .landing-nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 40px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .landing-nav .brand-logo { font-size: 26px; }
@@ -197,10 +216,10 @@ body {
 
 /* Auth page */
 .auth-body { display: grid; place-items: center; min-height: 100vh; background:
-  radial-gradient(700px 460px at 20% 0%, rgba(168,85,247,.20), transparent 60%),
-  radial-gradient(680px 460px at 85% 100%, rgba(124,58,237,.18), transparent 62%),
+  radial-gradient(700px 460px at 20% 0%, rgba(124,58,237,.12), transparent 60%),
+  radial-gradient(680px 460px at 85% 100%, rgba(124,58,237,.10), transparent 62%),
   var(--bg); }
-.auth-card { width: 360px; max-width: 92vw; background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--border-silver); border-radius: 16px; padding: 32px; box-shadow: 0 20px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(201,198,216,.04); }
+.auth-card { width: 360px; max-width: 92vw; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; box-shadow: 0 20px 50px rgba(23,21,31,.12), 0 0 0 1px rgba(23,21,31,.03); }
 .auth-brand { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .auth-brand .brand-logo { font-size: 28px; }
 .auth-brand .brand-name { font-size: 22px; font-weight: 700; }
@@ -225,8 +244,8 @@ body {
 /* Layout */
 .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 57px); }
 
-/* Sidebar */
-.sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 16px; display: flex; flex-direction: column; }
+/* Sidebar (тёмный: чёрный + фиолетовый) */
+.sidebar { background: var(--sidebar-bg); border-right: 1px solid #2a2740; padding: 20px 16px; display: flex; flex-direction: column; }
 .nav-bottom { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .nav-exit { color: #d23f3f; }
 .nav-exit:hover { background: rgba(224,52,75,.16); }
@@ -251,6 +270,18 @@ a.nav-item, a.lesson { text-decoration: none; color: inherit; }
 .nav-ico { width: 24px; text-align: center; }
 .nav-cmd { font-family: ui-monospace, monospace; font-size: 12px; color: var(--accent); min-width: 70px; }
 .nav-label { font-size: 14px; }
+
+/* Тёмный сайдбар: светлый текст и фиолетовые акценты поверх базовых правил */
+.sidebar .sidebar-title { color: var(--sidebar-muted); }
+.sidebar .nav-item { color: var(--sidebar-text); }
+.sidebar .nav-item:hover { background: rgba(124,58,237,.20); }
+.sidebar .nav-item.active { background: rgba(124,58,237,.32); color: #fff; }
+.sidebar .nav-cmd { color: #b794f6; }
+.sidebar .nav-bottom { border-top-color: rgba(255,255,255,.10); }
+.sidebar .nav-exit { color: #ff8a90; }
+.sidebar .nav-exit:hover { background: rgba(255,90,100,.16); }
+.sidebar .goal-text-link { color: #fff; }
+.sidebar .goal-sub { color: rgba(255,255,255,.72); }
 
 /* Content */
 .content { padding: 28px 32px; overflow-y: auto; }
@@ -561,7 +592,7 @@ a.brand { text-decoration: none; color: inherit; }
 .flow-wide { max-width: 1240px; }
 .player { display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: start; }
 .player-main { min-width: 0; }
-.player-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 14px; overflow: hidden; box-shadow: 0 12px 34px rgba(0,0,0,.45); }
+.player-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 12px 30px rgba(23,21,31,.18); }
 .player-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .player-title { font-size: 19px; margin: 16px 0 6px; }
 .player-desc { color: var(--muted); line-height: 1.55; margin: 0; }

@@ -108,4 +108,5 @@ const app = createApp({
   },
 });
 app.component("app-topbar", AppTopbar);
+app.component("app-sidebar", AppSidebar);
 app.mount("#app");

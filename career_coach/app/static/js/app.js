@@ -117,6 +117,11 @@ createApp({
       }
     }
     this.ready = true;
+
+    // Allow deep-linking straight to the profile view via /app?view=info.
+    if (new URLSearchParams(window.location.search).get("view") === "info") {
+      this.openInfo();
+    }
   },
 
   methods: {

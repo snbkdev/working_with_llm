@@ -11,7 +11,10 @@
   <div id="app" v-cloak>
     <app-topbar active="goal"></app-topbar>
 
-    <main class="flow-page">
+    <div class="layout">
+      <app-sidebar active="goal"></app-sidebar>
+      <main class="content">
+        <div class="flow-page">
       <p v-if="loading" class="flow-status">Загрузка…</p>
       <p v-else-if="error" class="flow-status">{{ error }}</p>
 
@@ -41,10 +44,13 @@
         </div>
         <p v-if="!items.length" class="flow-empty">Пока пусто.</p>
       </template>
-    </main>
+        </div>
+      </main>
+    </div>
   </div>
 
   <script src="/static/js/topbar.js"></script>
+  <script src="/static/js/sidebar.js"></script>
   <script src="/static/js/goal.js"></script>
 </body>
 </html>
