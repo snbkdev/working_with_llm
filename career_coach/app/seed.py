@@ -5,6 +5,223 @@ Subcategories may carry a "technologies" list; each technology a "courses" list.
 Subcategories without "technologies" simply show no courses yet in the UI.
 """
 
+# Реальные видео-курсы с YouTube (проверенные ID каналов freeCodeCamp и др.).
+# Каждый урок проигрывает видео по "youtube_id" (при желании — с определённой
+# секунды через "start"), поэтому уроки — это «главы» одного длинного видео.
+# Курс привязывается к существующей технологии по пути category/subcategory/technology.
+# ID и таймкоды легко заменить на свои.
+
+# Консервативные таймкоды глав (в пределах первого часа — безопасно для любого
+# полноформатного курса) и примерная длительность каждой главы.
+_YT_STARTS = [0, 500, 1200, 2000, 3000]
+_YT_DUR = ["8 мин", "12 мин", "13 мин", "17 мин", "16 мин"]
+
+
+def _yt(category, subcategory, technology, *, id, title, author, duration, description, chapters):
+    """Собрать запись видео-курса: главы получают общие таймкоды из _YT_STARTS."""
+    return {
+        "category": category, "subcategory": subcategory, "technology": technology,
+        "youtube_id": id,
+        "course": {
+            "title": title, "author": author, "duration": duration,
+            "url": f"https://www.youtube.com/watch?v={id}", "description": description,
+        },
+        "lessons": [
+            {"title": ch, "start": _YT_STARTS[i], "duration": _YT_DUR[i]}
+            for i, ch in enumerate(chapters)
+        ],
+    }
+
+
+SEED_YT_COURSES = [
+    # Python и JavaScript заданы вручную — с подробными главами и таймкодами.
+    {
+        "category": "backend", "subcategory": "python", "technology": "python-basics",
+        "course": {
+            "title": "Python для начинающих — полный видеокурс (freeCodeCamp)",
+            "author": "freeCodeCamp · Mike Dane",
+            "duration": "4 ч 26 мин",
+            "url": "https://www.youtube.com/watch?v=rfscVS0vtbw",
+            "description": "Бесплатный курс: синтаксис, типы, функции и ООП — одно видео, разбитое на уроки-главы.",
+        },
+        "lessons": [
+            {"title": "Введение и установка Python", "start": 0, "duration": "16 мин"},
+            {"title": "Переменные и типы данных", "start": 970, "duration": "20 мин"},
+            {"title": "Строки и числа", "start": 2180, "duration": "22 мин"},
+            {"title": "Списки, кортежи и словари", "start": 4200, "duration": "30 мин"},
+            {"title": "Условия и циклы", "start": 6800, "duration": "26 мин"},
+            {"title": "Функции", "start": 8600, "duration": "24 мин"},
+            {"title": "Классы и объекты (ООП)", "start": 12000, "duration": "35 мин"},
+        ],
+        "youtube_id": "rfscVS0vtbw",
+    },
+    {
+        "category": "frontend", "subcategory": "javascript", "technology": "js-core",
+        "course": {
+            "title": "JavaScript — полный видеокурс для начинающих (freeCodeCamp)",
+            "author": "freeCodeCamp · Beau Carnes",
+            "duration": "3 ч 26 мин",
+            "url": "https://www.youtube.com/watch?v=PkZNo7MFNFg",
+            "description": "Основы JavaScript с нуля: переменные, функции, объекты и работа с DOM.",
+        },
+        "lessons": [
+            {"title": "Введение в JavaScript", "start": 0, "duration": "15 мин"},
+            {"title": "Переменные и операторы", "start": 1200, "duration": "20 мин"},
+            {"title": "Функции", "start": 3600, "duration": "24 мин"},
+            {"title": "Массивы и объекты", "start": 6000, "duration": "24 мин"},
+            {"title": "Условия и циклы", "start": 8400, "duration": "20 мин"},
+        ],
+        "youtube_id": "PkZNo7MFNFg",
+    },
+
+    # Остальные курсы — через хелпер (главы с общими таймкодами).
+    _yt("frontend", "react", "react-core", id="bMknfKXIFA8",
+        title="React для начинающих — видеокурс (freeCodeCamp)",
+        author="freeCodeCamp", duration="1 ч 48 мин",
+        description="Основы React: компоненты, пропсы, состояние и хуки.",
+        chapters=["Введение в React", "JSX и компоненты", "Пропсы и состояние (useState)",
+                  "Хуки и эффекты (useEffect)", "Списки, события и формы"]),
+    _yt("frontend", "vue", "vue3", id="FXpIoQ_rT_c",
+        title="Vue.js — видеокурс для начинающих (freeCodeCamp)",
+        author="freeCodeCamp", duration="3 ч 21 мин",
+        description="Vue с нуля: шаблоны, реактивность, компоненты и Composition API.",
+        chapters=["Введение во Vue", "Шаблоны и реактивность", "Директивы и события",
+                  "Компоненты и пропсы", "Composition API"]),
+    _yt("frontend", "html", "html5", id="kUMe1FH4CHE",
+        title="HTML — полный видеокурс (freeCodeCamp)",
+        author="freeCodeCamp", duration="2 ч 06 мин",
+        description="Разметка страниц с нуля: теги, структура, ссылки, формы и семантика.",
+        chapters=["Введение в HTML", "Теги и структура страницы", "Текст, ссылки и изображения",
+                  "Списки и таблицы", "Формы и семантика"]),
+    _yt("frontend", "css", "css3", id="OXGznpKZ_sA",
+        title="CSS — полный видеокурс (freeCodeCamp)",
+        author="freeCodeCamp", duration="1 ч 25 мин",
+        description="Стили с нуля: селекторы, блочная модель, Flexbox и адаптивность.",
+        chapters=["Введение в CSS", "Селекторы и свойства", "Блочная модель",
+                  "Flexbox", "Адаптивность и медиазапросы"]),
+    _yt("databases", "sql-basics", "sql", id="HXV3zeQKqGY",
+        title="SQL — полный видеокурс (freeCodeCamp)",
+        author="freeCodeCamp · Mike Dane", duration="4 ч 20 мин",
+        description="Запросы к базам данных: SELECT, WHERE, JOIN, агрегаты и подзапросы.",
+        chapters=["Введение и первая база", "SELECT и фильтрация (WHERE)", "Сортировка и агрегаты",
+                  "Объединения таблиц (JOIN)", "Группировка и подзапросы"]),
+    _yt("backend", "java", "java-basics", id="A74TOX803D0",
+        title="Java для начинающих — полный видеокурс (freeCodeCamp)",
+        author="freeCodeCamp", duration="2 ч 30 мин",
+        description="Основы Java: синтаксис, типы, циклы, методы и ООП.",
+        chapters=["Введение и установка JDK", "Переменные и типы", "Условия и циклы",
+                  "Методы и массивы", "Классы и объекты (ООП)"]),
+    _yt("backend", "csharp", "csharp-basics", id="GhQdlIFylQ8",
+        title="C# — полный видеокурс для начинающих (freeCodeCamp)",
+        author="freeCodeCamp", duration="4 ч 30 мин",
+        description="Язык C# с нуля: переменные, циклы, методы и объектно-ориентированный подход.",
+        chapters=["Введение и установка .NET", "Переменные и типы", "Условия и циклы",
+                  "Методы и массивы", "Классы и ООП"]),
+    _yt("backend", "go", "go-basics", id="YS4e4q9oBaU",
+        title="Go (Golang) — видеокурс для начинающих (freeCodeCamp)",
+        author="freeCodeCamp", duration="6 ч 25 мин",
+        description="Go с нуля: типы, функции, структуры, интерфейсы и конкурентность.",
+        chapters=["Введение и установка Go", "Переменные и типы", "Функции и пакеты",
+                  "Структуры и интерфейсы", "Горутины и каналы"]),
+    _yt("backend", "php", "php-basics", id="OK_JCtrrv-c",
+        title="PHP — полный видеокурс (freeCodeCamp)",
+        author="freeCodeCamp", duration="4 ч 37 мин",
+        description="PHP с нуля: синтаксис, циклы, функции, массивы и обработка форм.",
+        chapters=["Введение в PHP", "Переменные и типы", "Условия и циклы",
+                  "Функции и массивы", "Формы и работа с данными"]),
+    _yt("backend", "python", "django", id="F5mRW0jo-U4",
+        title="Django — полный видеокурс (freeCodeCamp)",
+        author="freeCodeCamp", duration="3 ч 44 мин",
+        description="Веб-фреймворк Django: проект, модели, представления, шаблоны и админка.",
+        chapters=["Введение и установка Django", "Проект и приложения", "Модели и миграции",
+                  "Представления и маршруты", "Шаблоны и админка"]),
+    _yt("backend", "python", "flask", id="Z1RJmh_OqeA",
+        title="Flask — полный видеокурс (freeCodeCamp)",
+        author="freeCodeCamp", duration="4 ч 07 мин",
+        description="Микрофреймворк Flask: маршруты, шаблоны, формы и работа с БД.",
+        chapters=["Введение и первый роут", "Маршруты и шаблоны", "Формы и запросы",
+                  "Работа с базой данных", "Финальное приложение"]),
+    _yt("devops", "docker", "docker-core", id="fqMOX6JJhGo",
+        title="Docker для начинающих — видеокурс (freeCodeCamp)",
+        author="freeCodeCamp", duration="2 ч 10 мин",
+        description="Контейнеризация с нуля: образы, контейнеры, Dockerfile и Docker Compose.",
+        chapters=["Введение в контейнеры", "Установка Docker", "Образы и контейнеры",
+                  "Dockerfile", "Docker Compose"]),
+    _yt("mobile", "android", "kotlin-android", id="EExSSotojVI",
+        title="Kotlin — полный видеокурс для начинающих (freeCodeCamp)",
+        author="freeCodeCamp", duration="2 ч 08 мин",
+        description="Язык Kotlin с нуля: переменные, функции, классы и ООП.",
+        chapters=["Введение и установка", "Переменные и типы", "Условия и циклы",
+                  "Функции", "Классы и ООП"]),
+]
+
+
+# Курсы, которые добавляются простой YouTube-ССЫЛКОЙ (без ручных таймкодов).
+# Чтобы добавить курс: укажите направление (category/subcategory/technology —
+# слаги из SEED_CATEGORIES), название, автора и список уроков, где каждый урок —
+# это просто ссылка на видео. Ссылка может быть любой:
+#   https://youtu.be/ID   |   https://www.youtube.com/watch?v=ID&t=1m30s   |   ID
+# Таймкод (t=/start=) распознаётся автоматически. Курс появится под направлением,
+# урок будет проигрывать видео по ссылке.
+SEED_LINK_COURSES = [
+    {
+        "category": "backend", "subcategory": "python", "technology": "fastapi",
+        "title": "FastAPI — разработка API (freeCodeCamp)",
+        "author": "freeCodeCamp · Sanjeev Thiyagarajan", "duration": "19 ч",
+        "description": "Полный курс по FastAPI: маршруты, Pydantic, база данных и аутентификация.",
+        "lessons": [
+            {"title": "Полный курс FastAPI", "url": "https://youtu.be/0sOvCWFmrtA"},
+        ],
+    },
+    {
+        "category": "backend", "subcategory": "java", "technology": "spring-boot",
+        "title": "Spring Boot — полный курс (Amigoscode)",
+        "author": "Amigoscode", "duration": "5 ч 40 мин",
+        "description": "Spring Boot с нуля: REST, JPA, зависимости и структура приложения.",
+        "lessons": [
+            {"title": "Полный курс Spring Boot", "url": "https://www.youtube.com/watch?v=9SGDpanrc8U"},
+        ],
+    },
+    {
+        "category": "data-science", "subcategory": "data-analysis", "technology": "pandas",
+        "title": "Анализ данных на Python: NumPy и Pandas",
+        "author": "freeCodeCamp · Keith Galli", "duration": "5 ч",
+        "description": "Два видео-урока: обзорный курс анализа данных и практический Pandas.",
+        "lessons": [
+            {"title": "Анализ данных: NumPy, Pandas, Matplotlib", "url": "https://youtu.be/r-uOLxNrNk8"},
+            {"title": "Практика Pandas (Keith Galli)", "url": "https://www.youtube.com/watch?v=vmEHCJofslg"},
+        ],
+    },
+    {
+        "category": "ui-ux", "subcategory": "figma", "technology": "figma-core",
+        "title": "Figma за 24 минуты (AJ&Smart)",
+        "author": "AJ&Smart", "duration": "24 мин",
+        "description": "Быстрый старт в Figma: интерфейс, фреймы, компоненты и авто-лейаут.",
+        "lessons": [
+            {"title": "Введение в Figma", "url": "https://youtu.be/FTFaQWZBqQ8"},
+        ],
+    },
+    {
+        "category": "devops", "subcategory": "linux", "technology": "linux-admin",
+        "title": "Linux для начинающих (freeCodeCamp)",
+        "author": "freeCodeCamp", "duration": "5 ч 18 мин",
+        "description": "Основы Linux: терминал, файловая система, права и процессы.",
+        "lessons": [
+            {"title": "Полный курс Linux", "url": "https://www.youtube.com/watch?v=sWbUDq4S6Y8"},
+        ],
+    },
+    {
+        "category": "gamedev", "subcategory": "unity", "technology": "unity-core",
+        "title": "Unity для начинающих (freeCodeCamp)",
+        "author": "freeCodeCamp", "duration": "5 ч 32 мин",
+        "description": "Разработка игр на Unity и C#: сцены, объекты, скрипты и физика.",
+        "lessons": [
+            {"title": "Полный курс Unity", "url": "https://youtu.be/gB1F9G0JXOo"},
+        ],
+    },
+]
+
+
 SEED_CATEGORIES = [
     {
         "slug": "backend", "title": "Backend", "icon": "🛠️", "color": "#5d3fd3",

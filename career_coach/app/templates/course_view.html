@@ -11,7 +11,7 @@
   <div id="app" v-cloak>
     <app-topbar active="goal"></app-topbar>
 
-    <main class="flow-page">
+    <main class="flow-page flow-wide">
       <p v-if="loading" class="flow-status">Загрузка…</p>
       <template v-else-if="course">
         <div class="course-head">
@@ -29,10 +29,41 @@
           <a class="course-tab on" :href="`/course/${course.id}/view`">Просмотр</a>
         </nav>
 
-        <div class="view-placeholder">
+        <!-- Нет ни одного видео у уроков -->
+        <div v-if="!playable.length" class="view-placeholder">
           <span class="view-placeholder-ico">🎬</span>
-          <p class="view-placeholder-text">Контент курса появится позже.</p>
-          <p class="view-placeholder-sub">Здесь будут уроки и видео по плану обучения.</p>
+          <p class="view-placeholder-text">Видео для этого курса пока не добавлены.</p>
+          <p class="view-placeholder-sub">Загляните в «План обучения», чтобы посмотреть программу.</p>
+        </div>
+
+        <div v-else class="player">
+          <div class="player-main">
+            <div class="player-frame">
+              <iframe v-if="embedUrl" :src="embedUrl" :title="current.title"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowfullscreen></iframe>
+            </div>
+            <h2 v-if="current" class="player-title">{{ current.title }}</h2>
+            <p v-if="current && current.description" class="player-desc">{{ current.description }}</p>
+          </div>
+
+          <aside class="player-lessons">
+            <p class="player-lessons-head">Уроки · {{ playable.length }}</p>
+            <button v-for="(l, i) in course.lessons" :key="l.id"
+                    class="player-lesson"
+                    :class="{ on: current && l.id === current.id, novideo: !l.youtube_id }"
+                    :disabled="!l.youtube_id" @click="select(l)">
+              <span class="player-lesson-ico">
+                <template v-if="!l.youtube_id">🔒</template>
+                <template v-else-if="current && l.id === current.id">▶️</template>
+                <template v-else>{{ i + 1 }}</template>
+              </span>
+              <span class="player-lesson-main">
+                <span class="player-lesson-title">{{ l.title }}</span>
+                <span v-if="l.duration" class="player-lesson-dur">{{ l.duration }}</span>
+              </span>
+            </button>
+          </aside>
         </div>
       </template>
       <p v-else class="flow-status">Курс не найден</p>

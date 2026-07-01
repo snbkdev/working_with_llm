@@ -31,6 +31,7 @@ from .security import (
     hash_password,
     verify_password,
 )
+from .xp import award_xp
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -81,6 +82,17 @@ class UserOut(BaseModel):
     birth_date: date | None = None
     bio: str | None = None
     avatar: str | None = None
+
+
+class XpAwardPayload(BaseModel):
+    action: str  # 'quiz' | 'challenge'
+
+
+class XpAwardOut(BaseModel):
+    awarded: int
+    xp: int
+    level: int
+    leveled_up: bool
 
 
 class ProfilePayload(BaseModel):
@@ -282,6 +294,32 @@ async def logout(response: Response) -> dict:
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(get_current_user)) -> User:
     return user
+
+
+@router.post("/xp/award", response_model=XpAwardOut)
+async def award_xp_route(
+    payload: XpAwardPayload,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> XpAwardOut:
+    """Начислить XP за завершённое действие. Суммы фиксированы на сервере
+    (см. config.XP_REWARDS) — клиент передаёт только название действия.
+
+    NOTE: пока квизы/челленджи не проверяются на сервере, XP начисляется по
+    факту вызова. Когда появятся реальные проверки (этапы 4–5 плана), начисление
+    нужно привязать к верифицированному результату, а не к самому обращению.
+    """
+    try:
+        result = award_xp(user, payload.action)
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Неизвестное действие")
+    await db.commit()
+    return XpAwardOut(
+        awarded=result["awarded"],
+        xp=result["xp"],
+        level=result["level"],
+        leveled_up=result["leveled_up"],
+    )
 
 
 @router.patch("/profile", response_model=UserOut)

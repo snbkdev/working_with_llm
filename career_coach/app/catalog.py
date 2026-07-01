@@ -134,6 +134,7 @@ async def course_detail(course_id: int, db: AsyncSession = Depends(get_session))
         {
             "id": l.id, "title": l.title, "description": l.description,
             "duration": l.duration, "position": l.position,
+            "youtube_id": l.youtube_id, "video_start": l.video_start,
         }
         for l in course.lessons
     ]

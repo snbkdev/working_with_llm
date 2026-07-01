@@ -37,11 +37,13 @@ createApp({
         },
       ],
       draft: "",
-      // dashboard featured lessons
+      // короткое всплывающее уведомление о начислении XP
+      xpToast: "",
+      // dashboard featured lessons ('action' → какое действие начисляет XP)
       featured: [
-        { command: "/learn", ico: "📖", name: "Режим обучения", desc: "Разбор темы шаг за шагом" },
-        { command: "/quiz", ico: "❓", name: "Квиз", desc: "Проверка знаний, +10 XP за ответ" },
-        { command: "/challenge", ico: "⚔️", name: "Код-челлендж", desc: "Задача на код, +100 XP за решение" },
+        { command: "/learn", ico: "📖", name: "Режим обучения", desc: "Разбор темы шаг за шагом", action: null },
+        { command: "/quiz", ico: "❓", name: "Квиз", desc: "Проверка знаний, +10 XP за ответ", action: "quiz" },
+        { command: "/challenge", ico: "⚔️", name: "Код-челлендж", desc: "Задача на код, +100 XP за решение", action: "challenge" },
       ],
     };
   },
@@ -118,6 +120,41 @@ createApp({
     go(view) {
       this.view = view;
       if (view === "chat") this.scrollChat();
+    },
+    async award(action) {
+      // Начисление XP за действие. Суммы считает сервер (config.XP_REWARDS);
+      // здесь только показываем обновлённый прогресс.
+      try {
+        const res = await fetch("/api/auth/xp/award", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        this.xp = data.xp;
+        this.level = data.level;
+        if (this.user) {
+          this.user.xp = data.xp;
+          this.user.level = data.level;
+        }
+        if (data.leveled_up) {
+          this.showXpToast(`+${data.awarded} XP · Уровень ${data.level}! 🎉`);
+        } else if (data.awarded > 0) {
+          this.showXpToast(`+${data.awarded} XP`);
+        } else {
+          this.showXpToast("Достигнут максимум — уровень 50 💎");
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    },
+    showXpToast(text) {
+      this.xpToast = text;
+      clearTimeout(this._xpToastTimer);
+      this._xpToastTimer = setTimeout(() => {
+        this.xpToast = "";
+      }, 2500);
     },
     toggleMenu() {
       this.menuOpen = !this.menuOpen;

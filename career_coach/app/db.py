@@ -1,4 +1,5 @@
 """Async SQLAlchemy engine, session factory and Base."""
+import logging
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -46,6 +47,8 @@ async def init_db() -> None:
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_course_id INTEGER",
             "ALTER TABLE courses ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION DEFAULT 0 NOT NULL",
             "ALTER TABLE courses ADD COLUMN IF NOT EXISTS reviews_count INTEGER DEFAULT 0 NOT NULL",
+            "ALTER TABLE lessons ADD COLUMN IF NOT EXISTS youtube_id VARCHAR(20)",
+            "ALTER TABLE lessons ADD COLUMN IF NOT EXISTS video_start INTEGER DEFAULT 0 NOT NULL",
         ):
             await conn.execute(text(ddl))
 
@@ -138,6 +141,9 @@ async def seed_tree() -> None:
             await session.commit()
 
     await seed_lessons()
+    await seed_youtube_courses()
+    await seed_link_courses()
+    await prune_courses_without_video()
     # Reviews/ratings are intentionally left empty for now — real user reviews
     # will be added later as a separate feature.
 
@@ -197,3 +203,166 @@ async def seed_lessons() -> None:
             added = True
         if added:
             await session.commit()
+
+
+async def _tech_by_path(session) -> dict:
+    """Map (category_slug, subcategory_slug, technology_slug) -> Technology.
+
+    Technologies are loaded with their courses so seeders can check for existing
+    courses and compute positions without extra lazy loads.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from .models import Subcategory, Technology
+
+    techs = (
+        await session.scalars(
+            select(Technology).options(
+                selectinload(Technology.courses),
+                selectinload(Technology.subcategory).selectinload(Subcategory.category),
+            )
+        )
+    ).all()
+    out: dict[tuple[str, str, str], Technology] = {}
+    for t in techs:
+        sub = t.subcategory
+        cat = sub.category if sub else None
+        if sub and cat:
+            out[(cat.slug, sub.slug, t.slug)] = t
+    return out
+
+
+async def seed_youtube_courses() -> None:
+    """Add curated YouTube video-courses (with per-lesson videos), if missing.
+
+    Idempotent: a course is skipped when one with the same title already exists
+    under its technology. Each lesson stores the shared video id + a start offset
+    so the lessons act as chapters of one long course video.
+    """
+    from .models import Course, Lesson
+    from .seed import SEED_YT_COURSES
+
+    async with SessionLocal() as session:
+        by_path = await _tech_by_path(session)
+        added = False
+        for entry in SEED_YT_COURSES:
+            tech = by_path.get(
+                (entry["category"], entry["subcategory"], entry["technology"])
+            )
+            if tech is None:
+                continue
+            if any(c.title == entry["course"]["title"] for c in tech.courses):
+                continue  # already seeded
+            c = entry["course"]
+            video_id = entry["youtube_id"]
+            course = Course(
+                technology_id=tech.id,
+                title=c["title"], author=c.get("author", ""),
+                duration=c.get("duration", ""), url=c.get("url", ""),
+                description=c.get("description", ""),
+                position=len(tech.courses),
+            )
+            for pos, lesson in enumerate(entry["lessons"]):
+                course.lessons.append(
+                    Lesson(
+                        title=lesson["title"],
+                        description=lesson.get("description", ""),
+                        duration=lesson.get("duration", ""),
+                        position=pos,
+                        youtube_id=lesson.get("youtube_id", video_id),
+                        video_start=int(lesson.get("start", 0)),
+                    )
+                )
+            session.add(course)
+            added = True
+        if added:
+            await session.commit()
+
+
+async def seed_link_courses() -> None:
+    """Add courses defined by plain YouTube links (see seed.SEED_LINK_COURSES).
+
+    Each lesson's URL is parsed into a video id + start offset, so courses can be
+    added by simply pasting links. Idempotent (skips a course whose title already
+    exists under its technology); lessons with an unparseable link are skipped,
+    and a course with no valid video is not created.
+    """
+    from .models import Course, Lesson
+    from .seed import SEED_LINK_COURSES
+    from .youtube import parse_youtube
+
+    async with SessionLocal() as session:
+        by_path = await _tech_by_path(session)
+        added = False
+        for entry in SEED_LINK_COURSES:
+            tech = by_path.get(
+                (entry["category"], entry["subcategory"], entry["technology"])
+            )
+            if tech is None:
+                continue
+            if any(c.title == entry["title"] for c in tech.courses):
+                continue  # already seeded
+            course = Course(
+                technology_id=tech.id,
+                title=entry["title"], author=entry.get("author", ""),
+                duration=entry.get("duration", ""),
+                description=entry.get("description", ""),
+                position=len(tech.courses),
+            )
+            for lesson in entry.get("lessons", []):
+                vid, start = parse_youtube(lesson.get("url", ""))
+                if not vid:
+                    continue  # skip a lesson we couldn't parse a video id from
+                course.lessons.append(
+                    Lesson(
+                        title=lesson["title"],
+                        description=lesson.get("description", ""),
+                        duration=lesson.get("duration", ""),
+                        position=len(course.lessons),
+                        youtube_id=vid, video_start=start,
+                    )
+                )
+            if not course.lessons:
+                continue  # no playable video → don't add an empty course
+            course.url = entry.get("url") or f"https://youtu.be/{course.lessons[0].youtube_id}"
+            session.add(course)
+            added = True
+        if added:
+            await session.commit()
+
+
+async def prune_courses_without_video() -> None:
+    """Delete courses that have no lesson with a YouTube video (user preference:
+    keep the catalog to real, playable video-courses only).
+
+    Cascades remove each course's lessons/reviews. Any user goal pointing at a
+    removed course is cleared so the sidebar falls back to "choose a course".
+    Runs on every startup and is stable: deleted placeholder courses are not
+    re-seeded (seed_tree only adds courses for brand-new technologies).
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from .models import Course, User
+
+    async with SessionLocal() as session:
+        courses = (
+            await session.scalars(select(Course).options(selectinload(Course.lessons)))
+        ).all()
+        to_delete = [c for c in courses if not any(l.youtube_id for l in c.lessons)]
+        if not to_delete:
+            return
+        ids = {c.id for c in to_delete}
+        # Clear stale goals that referenced a course we're about to remove.
+        users = (
+            await session.scalars(select(User).where(User.goal_course_id.in_(ids)))
+        ).all()
+        for u in users:
+            u.goal_course_id = None
+        for c in to_delete:
+            await session.delete(c)
+        await session.commit()
+        logging.getLogger("duckie").info(
+            "Удалено курсов без видео: %d (оставлены только видео-курсы)", len(to_delete)
+        )

@@ -43,6 +43,10 @@
 
     <div v-if="menuOpen" class="menu-backdrop" @click="menuOpen = false"></div>
 
+    <transition name="xp-toast">
+      <div v-if="xpToast" class="xp-toast">{{ xpToast }}</div>
+    </transition>
+
     <div class="layout">
       <aside class="sidebar">
         <div class="goal-card">
@@ -92,7 +96,7 @@
           <h2 class="section-title">Продолжить обучение</h2>
           <div class="lesson-list">
             <a v-for="lesson in featured" :key="lesson.command" class="lesson"
-               href="#" @click.prevent>
+               href="#" @click.prevent="lesson.action && award(lesson.action)">
               <span class="lesson-ico">{{ lesson.ico }}</span>
               <span class="lesson-body">
                 <span class="lesson-name">{{ lesson.name }}</span>

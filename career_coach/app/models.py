@@ -156,6 +156,10 @@ class Lesson(Base):
     description: Mapped[str] = mapped_column(String(400), default="", nullable=False)
     duration: Mapped[str] = mapped_column(String(40), default="", nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # YouTube video for the lesson: 11-char video id + optional start offset (sec),
+    # so several lessons can be "chapters" of one long course video.
+    youtube_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    video_start: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     course: Mapped["Course"] = relationship(back_populates="lessons")
 

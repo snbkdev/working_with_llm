@@ -38,6 +38,7 @@
             <span class="plan-body">
               <span class="plan-title">{{ l.title }}</span>
               <span v-if="l.description" class="plan-desc">{{ l.description }}</span>
+              <a v-if="l.youtube_id" class="plan-watch" :href="`/course/${course.id}/view?lesson=${l.id}`">▶ Смотреть</a>
             </span>
             <span v-if="l.duration" class="plan-dur">{{ l.duration }}</span>
           </li>

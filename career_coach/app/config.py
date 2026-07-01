@@ -16,6 +16,17 @@ TAGLINE = "Твой путь в IT — учись, проверяй знания
 GOAL = "Стать Python-разработчиком с доходом $100k+ к концу года"
 # Категории/подкатегории теперь хранятся в БД (см. app/models.py и app/seed.py).
 
+# --- Геймификация: правила XP/уровней (из docs.md) ---
+XP_PER_LEVEL = 100                       # XP на один уровень
+MAX_LEVEL = 50                           # потолок уровня
+MAX_XP = XP_PER_LEVEL * MAX_LEVEL        # 5000 — выше XP не растёт
+# Сколько XP даёт завершённое действие. Суммы фиксированы на сервере,
+# клиент присылает только название действия.
+XP_REWARDS = {
+    "quiz": 10,        # +10 XP за квиз
+    "challenge": 100,  # +100 XP за код-челлендж
+}
+
 # --- Database / auth settings (overridable via .env) ---
 # Postgres.app default: current OS user, no password, localhost:5432.
 DATABASE_URL = os.getenv(
