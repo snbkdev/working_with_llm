@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duckie — Добавить курс</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="admin-body">
+  <div id="app" v-cloak v-if="ready">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+        <span class="brand-sub">Добавление курса</span>
+      </div>
+      <a class="btn-ghost" href="/app">← В портал</a>
+    </header>
+
+    <main class="admin-main">
+      <section class="admin-block">
+        <h2>Новый курс с YouTube</h2>
+
+        <div class="mentor-form">
+          <!-- Направление -->
+          <div class="mentor-selects">
+            <label>
+              <span>Категория</span>
+              <select v-model="sel.catId">
+                <option value="" disabled>Выберите категорию</option>
+                <option v-for="c in cats" :key="c.id" :value="c.id">{{ c.icon }} {{ c.title }}</option>
+              </select>
+            </label>
+            <label>
+              <span>Подкатегория</span>
+              <select v-model="sel.subId" :disabled="!subs.length">
+                <option value="" disabled>Выберите подкатегорию</option>
+                <option v-for="s in subs" :key="s.id" :value="s.id">{{ s.title }}</option>
+              </select>
+            </label>
+            <label>
+              <span>Технология</span>
+              <select v-model="sel.techId" :disabled="!techs.length">
+                <option value="" disabled>Выберите технологию</option>
+                <option v-for="t in techs" :key="t.id" :value="t.id">{{ t.title }}</option>
+              </select>
+            </label>
+          </div>
+
+          <!-- Инфо о курсе -->
+          <div class="mentor-fields">
+            <label class="mentor-wide">
+              <span>Название курса</span>
+              <input v-model="form.title" placeholder="Напр. Python для начинающих">
+            </label>
+            <label>
+              <span>Автор</span>
+              <input v-model="form.author" placeholder="Автор / канал">
+            </label>
+            <label>
+              <span>Длительность</span>
+              <input v-model="form.duration" placeholder="напр. 4 ч">
+            </label>
+            <label class="mentor-wide">
+              <span>Короткое описание</span>
+              <input v-model="form.description" placeholder="О чём курс в одной строке">
+            </label>
+          </div>
+
+          <!-- Уроки -->
+          <h3 class="mentor-subhead">Уроки (ссылки на YouTube)</h3>
+          <p class="mentor-hint">Ссылка в любом виде: youtu.be/ID, youtube.com/watch?v=ID, можно с таймкодом (&t=1m30s).</p>
+          <div v-for="(l, i) in lessons" :key="i" class="mentor-lesson">
+            <span class="mentor-lesson-num">{{ i + 1 }}</span>
+            <input v-model="l.title" placeholder="Название урока" class="mentor-lesson-title">
+            <input v-model="l.url" placeholder="https://youtu.be/…" class="mentor-lesson-url">
+            <button class="btn-sm danger" @click="removeLesson(i)" :disabled="busy">✕</button>
+          </div>
+          <button class="btn-sm" @click="addLesson" :disabled="busy">+ Добавить урок</button>
+
+          <p v-if="error" class="admin-error">{{ error }}</p>
+          <p v-if="result" class="mentor-ok">
+            ✅ Курс «{{ result.title }}» создан ({{ result.lessons_added }} ур.<span v-if="result.lessons_skipped">, пропущено ссылок: {{ result.lessons_skipped }}</span>).
+            <a :href="`/course/${result.id}/view`">Открыть →</a>
+          </p>
+
+          <div class="mentor-actions">
+            <button class="btn-primary" @click="submit" :disabled="!canSubmit || busy">
+              {{ busy ? 'Сохранение…' : 'Создать курс' }}
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/js/mentor.js"></script>
+</body>
+</html>

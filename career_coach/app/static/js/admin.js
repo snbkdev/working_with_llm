@@ -5,7 +5,12 @@ createApp({
   data() {
     return {
       ready: false,
+      me: null,
       categories: [],
+      users: [],
+      mentorRequests: [],
+      roles: ["user", "mentor", "admin"],
+      roleLabels: { user: "Пользователь", mentor: "Ментор", admin: "Админ" },
       newCat: { icon: "📚", slug: "", title: "", color: "#5d3fd3", description: "" },
       drafts: {}, // per-category new-subcategory drafts, keyed by category id
       error: "",
@@ -22,8 +27,11 @@ createApp({
     } catch (e) {
       return (window.location.href = "/login");
     }
-    if (!me.is_admin) return (window.location.href = "/app");
+    if (me.role !== "admin") return (window.location.href = "/app");
+    this.me = me;
     await this.loadCatalog();
+    await this.loadUsers();
+    await this.loadMentorRequests();
     this.ready = true;
   },
   methods: {
@@ -34,6 +42,29 @@ createApp({
     async loadCatalog() {
       const res = await fetch("/api/admin/categories");
       if (res.ok) this.categories = await res.json();
+    },
+    async loadUsers() {
+      const res = await fetch("/api/admin/users");
+      if (res.ok) this.users = await res.json();
+    },
+    async changeRole(user, role) {
+      const updated = await this.req(`/api/admin/users/${user.id}/role`, "PATCH", { role });
+      if (updated) {
+        user.role = updated.role;
+      } else {
+        await this.loadUsers(); // revert the <select> to server state on failure
+      }
+    },
+    async loadMentorRequests() {
+      const res = await fetch("/api/admin/mentor-requests");
+      if (res.ok) this.mentorRequests = await res.json();
+    },
+    async decideMentor(reqUser, decision) {
+      const ok = await this.req(`/api/admin/mentor-requests/${reqUser.id}`, "PATCH", { decision });
+      if (ok) {
+        await this.loadMentorRequests();
+        await this.loadUsers(); // approved user's role changed
+      }
     },
     async req(url, method, body) {
       this.error = "";

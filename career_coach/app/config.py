@@ -47,6 +47,17 @@ APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000")
 ADMIN_EMAILS = {
     e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()
 }
+# Emails that get the mentor role on registration (unless already admin).
+MENTOR_EMAILS = {
+    e.strip().lower() for e in os.getenv("MENTOR_EMAILS", "").split(",") if e.strip()
+}
+
+# User roles. 'user' — learner; 'mentor' — can add courses and help learners;
+# 'admin' — full catalog + user management.
+ROLE_USER = "user"
+ROLE_MENTOR = "mentor"
+ROLE_ADMIN = "admin"
+ROLES = (ROLE_USER, ROLE_MENTOR, ROLE_ADMIN)
 
 
 def _parse_seconds(value: str, default: int) -> int:

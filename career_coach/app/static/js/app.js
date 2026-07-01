@@ -29,6 +29,9 @@ createApp({
       // avatar upload
       uploadingAvatar: false,
       avatarError: "",
+      // mentor application
+      mentorNote: "",
+      requestingMentor: false,
       // chat
       messages: [
         {
@@ -232,6 +235,35 @@ createApp({
         /* ignore */
       } finally {
         this.savingInfo = false;
+      }
+    },
+    async requestMentor() {
+      this.requestingMentor = true;
+      try {
+        const res = await fetch("/api/auth/mentor-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: this.mentorNote.trim() || null }),
+        });
+        if (res.ok) {
+          this.user = await res.json();
+          this.mentorNote = "";
+        }
+      } catch (e) {
+        /* ignore */
+      } finally {
+        this.requestingMentor = false;
+      }
+    },
+    async cancelMentorRequest() {
+      this.requestingMentor = true;
+      try {
+        const res = await fetch("/api/auth/mentor-request", { method: "DELETE" });
+        if (res.ok) this.user = await res.json();
+      } catch (e) {
+        /* ignore */
+      } finally {
+        this.requestingMentor = false;
       }
     },
     async logout() {

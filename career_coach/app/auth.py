@@ -16,11 +16,21 @@ from fastapi import (
 )
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from . import mailer
-from .config import ACCESS_TOKEN_EXPIRE_MINUTES, ADMIN_EMAILS, APP_BASE_URL, COOKIE_NAME
+from .config import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    ADMIN_EMAILS,
+    APP_BASE_URL,
+    COOKIE_NAME,
+    MENTOR_EMAILS,
+    ROLE_ADMIN,
+    ROLE_MENTOR,
+    ROLE_USER,
+)
 from .db import get_session
 from .models import Category, Course, Subcategory, Technology, User
 from .security import (
@@ -73,6 +83,9 @@ class UserOut(BaseModel):
     email: EmailStr
     xp: int
     level: int
+    role: str = ROLE_USER
+    mentor_request: str | None = None
+    mentor_request_note: str | None = None
     is_admin: bool = False
     direction: str | None = None
     planned: list[str] = []
@@ -199,8 +212,15 @@ async def get_current_user(
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     """Dependency: allow only admin users."""
-    if not user.is_admin:
+    if user.role != ROLE_ADMIN:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Требуются права администратора")
+    return user
+
+
+async def require_mentor(user: User = Depends(get_current_user)) -> User:
+    """Dependency: allow mentors and admins (course management, help features)."""
+    if user.role not in (ROLE_MENTOR, ROLE_ADMIN):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Требуются права ментора")
     return user
 
 
@@ -211,20 +231,33 @@ async def register(
     background: BackgroundTasks,
     db: AsyncSession = Depends(get_session),
 ) -> User:
-    existing = await db.scalar(select(User).where(User.email == payload.email))
+    # Normalize the email so uniqueness is case-insensitive (A@x.com == a@x.com).
+    email = payload.email.strip().lower()
+    existing = await db.scalar(select(User).where(func.lower(User.email) == email))
     if existing:
         raise HTTPException(status.HTTP_409_CONFLICT, "Email уже зарегистрирован")
-    # First user, or an email listed in ADMIN_EMAILS, becomes an admin.
+    # First user, or an email in ADMIN_EMAILS, becomes admin; MENTOR_EMAILS → mentor.
     user_count = await db.scalar(select(func.count()).select_from(User))
-    is_admin = user_count == 0 or payload.email.lower() in ADMIN_EMAILS
+    if user_count == 0 or email in ADMIN_EMAILS:
+        role = ROLE_ADMIN
+    elif email in MENTOR_EMAILS:
+        role = ROLE_MENTOR
+    else:
+        role = ROLE_USER
     user = User(
         name=payload.name,
-        email=payload.email,
+        email=email,
         password_hash=hash_password(payload.password),
-        is_admin=is_admin,
+        role=role,
+        is_admin=(role == ROLE_ADMIN),
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Concurrent registration won the race on the unique email constraint.
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email уже зарегистрирован")
     await db.refresh(user)
     _set_session_cookie(response, user.id)
     # Welcome email — sent after the response, never blocks registration.
@@ -239,7 +272,7 @@ async def forgot_password(
     db: AsyncSession = Depends(get_session),
 ) -> dict:
     """Send a reset link. Always returns ok (does not leak account existence)."""
-    user = await db.scalar(select(User).where(User.email == payload.email))
+    user = await db.scalar(select(User).where(func.lower(User.email) == payload.email.strip().lower()))
     if user:
         token = create_reset_token(str(user.id))
         reset_url = f"{APP_BASE_URL}/reset-password?token={token}"
@@ -278,7 +311,7 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_session),
 ) -> User:
-    user = await db.scalar(select(User).where(User.email == payload.email))
+    user = await db.scalar(select(User).where(func.lower(User.email) == payload.email.strip().lower()))
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный email или пароль")
     _set_session_cookie(response, user.id)
@@ -293,6 +326,42 @@ async def logout(response: Response) -> dict:
 
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(get_current_user)) -> User:
+    return user
+
+
+class MentorRequestPayload(BaseModel):
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/mentor-request", response_model=UserOut)
+async def request_mentor(
+    payload: MentorRequestPayload,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> User:
+    """A learner applies to become a mentor; an admin will approve or reject."""
+    if user.role != ROLE_USER:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Заявка доступна только обучающимся")
+    if user.mentor_request == "pending":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Заявка уже на рассмотрении")
+    user.mentor_request = "pending"
+    user.mentor_request_note = (payload.note or "").strip() or None
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.delete("/mentor-request", response_model=UserOut)
+async def cancel_mentor_request(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+) -> User:
+    """Withdraw a pending mentor application."""
+    if user.mentor_request == "pending":
+        user.mentor_request = None
+        user.mentor_request_note = None
+        await db.commit()
+        await db.refresh(user)
     return user
 
 

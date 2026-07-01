@@ -49,8 +49,29 @@ async def init_db() -> None:
             "ALTER TABLE courses ADD COLUMN IF NOT EXISTS reviews_count INTEGER DEFAULT 0 NOT NULL",
             "ALTER TABLE lessons ADD COLUMN IF NOT EXISTS youtube_id VARCHAR(20)",
             "ALTER TABLE lessons ADD COLUMN IF NOT EXISTS video_start INTEGER DEFAULT 0 NOT NULL",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user' NOT NULL",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mentor_request VARCHAR(20)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mentor_request_note TEXT",
+            # Backfill: existing admins get the admin role.
+            "UPDATE users SET role = 'admin' WHERE is_admin = true AND role <> 'admin'",
         ):
             await conn.execute(text(ddl))
+
+    # Case-insensitive unique email at the DB level (defense in depth). Kept in a
+    # separate, guarded transaction so legacy rows with case-duplicate emails
+    # can't block startup — app-level normalization already prevents new dupes.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_lower "
+                    "ON users (lower(email))"
+                )
+            )
+    except Exception:
+        logging.getLogger("duckie").warning(
+            "Не удалось создать уникальный индекс lower(email) — вероятно, есть дубли по регистру."
+        )
 
     await seed_catalog()
 

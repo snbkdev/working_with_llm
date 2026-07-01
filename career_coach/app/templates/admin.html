@@ -62,6 +62,47 @@
           </div>
         </div>
       </section>
+
+      <!-- Mentor applications -->
+      <section class="admin-block">
+        <h2>Заявки в менторы <span v-if="mentorRequests.length" class="req-count">{{ mentorRequests.length }}</span></h2>
+        <p v-if="!mentorRequests.length" class="admin-hint">Новых заявок нет.</p>
+        <div v-else class="admin-users">
+          <div v-for="r in mentorRequests" :key="r.id" class="admin-user admin-req">
+            <div class="admin-user-main">
+              <span class="admin-user-name">{{ r.name }}</span>
+              <span class="admin-user-email">{{ r.email }}</span>
+              <span v-if="r.note" class="req-note">«{{ r.note }}»</span>
+            </div>
+            <div class="req-actions">
+              <button class="btn-sm" @click="decideMentor(r, 'approve')" :disabled="busy">✓ Одобрить</button>
+              <button class="btn-sm danger" @click="decideMentor(r, 'reject')" :disabled="busy">✕ Отклонить</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users & roles -->
+      <section class="admin-block">
+        <h2>Пользователи и роли</h2>
+        <div class="admin-users">
+          <div v-for="u in users" :key="u.id" class="admin-user" :class="{ 'is-me': me && u.id === me.id }">
+            <div class="admin-user-main">
+              <span class="admin-user-name">
+                {{ u.name }}
+                <span class="role-badge" :class="u.role">{{ roleLabels[u.role] }}</span>
+                <span v-if="me && u.id === me.id" class="admin-user-email"> · это вы</span>
+              </span>
+              <span class="admin-user-email">{{ u.email }}</span>
+            </div>
+            <select :value="u.role" :disabled="busy || (me && u.id === me.id)"
+                    @change="changeRole(u, $event.target.value)">
+              <option v-for="r in roles" :key="r" :value="r">{{ roleLabels[r] }}</option>
+            </select>
+          </div>
+        </div>
+        <p v-if="error" class="admin-error">{{ error }}</p>
+      </section>
     </main>
   </div>
 

@@ -34,7 +34,8 @@
           <div v-if="menuOpen" class="profile-menu">
             <button class="profile-menu-item" @click="openInfo">ℹ️ Информация</button>
             <a class="profile-menu-item" href="/goal">🎯 Цель</a>
-            <a v-if="user && user.is_admin" class="profile-menu-item" href="/admin">🛠️ Админка</a>
+            <a v-if="user && (user.role === 'mentor' || user.role === 'admin')" class="profile-menu-item" href="/mentor">➕ Добавить курс</a>
+            <a v-if="user && user.role === 'admin'" class="profile-menu-item" href="/admin">🛠️ Админка</a>
             <button class="profile-menu-item danger" @click="logout">🚪 Выход</button>
           </div>
         </div>
@@ -154,6 +155,35 @@
               <span v-if="infoSaved" class="info-saved">✅ Сохранено</span>
             </div>
           </form>
+
+          <h2 class="section-title">Наставничество</h2>
+          <div class="mentor-apply">
+            <template v-if="user.role === 'mentor'">
+              <p class="mentor-apply-status">🎓 Вы ментор — можете добавлять курсы через «➕ Добавить курс».</p>
+            </template>
+            <template v-else-if="user.role === 'admin'">
+              <p class="mentor-apply-status">🛠️ Вы администратор.</p>
+            </template>
+            <template v-else-if="user.mentor_request === 'pending'">
+              <p class="mentor-apply-status">⏳ Ваша заявка на роль ментора на рассмотрении у администратора.</p>
+              <button class="btn-secondary" @click="cancelMentorRequest" :disabled="requestingMentor">
+                Отменить заявку
+              </button>
+            </template>
+            <template v-else>
+              <p class="mentor-apply-lead">
+                Хотите добавлять курсы и помогать другим? Подайте заявку — администратор её рассмотрит.
+              </p>
+              <p v-if="user.mentor_request === 'rejected'" class="mentor-apply-rejected">
+                Предыдущая заявка была отклонена. Вы можете подать её снова.
+              </p>
+              <textarea v-model="mentorNote" rows="3" class="mentor-apply-note"
+                        placeholder="Пару слов о себе и опыте (необязательно)"></textarea>
+              <button class="btn-primary" @click="requestMentor" :disabled="requestingMentor">
+                {{ requestingMentor ? 'Отправка…' : 'Стать ментором' }}
+              </button>
+            </template>
+          </div>
 
           <h2 class="section-title">Достижения</h2>
           <div class="achievements">

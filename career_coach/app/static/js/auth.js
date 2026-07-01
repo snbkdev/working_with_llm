@@ -40,6 +40,8 @@ createApp({
       this.mode = mode;
       this.error = "";
       this.sent = false;
+      // Clear inputs so switching between login/register/forgot starts fresh.
+      this.form = { name: "", email: "", password: "" };
     },
     async submit() {
       this.error = "";

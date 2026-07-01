@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .admin import router as admin_router
 from .auth import router as auth_router
 from .catalog import router as catalog_router
+from .mentor import router as mentor_router
 from .config import APP_NAME, GOAL, SLASH_COMMANDS, get_system_prompt
 from .db import init_db
 
@@ -39,6 +40,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.include_router(auth_router)
 app.include_router(catalog_router)
 app.include_router(admin_router)
+app.include_router(mentor_router)
 
 
 class ChatRequest(BaseModel):
@@ -77,6 +79,12 @@ async def reset_password_page() -> FileResponse:
 async def admin_page() -> FileResponse:
     """Serve the admin catalog-management page (access checked client-side)."""
     return FileResponse(TEMPLATES / "admin.html")
+
+
+@app.get("/mentor")
+async def mentor_page() -> FileResponse:
+    """Serve the mentor 'add course' page (mentor/admin access checked client-side)."""
+    return FileResponse(TEMPLATES / "mentor.html")
 
 
 @app.get("/goal")

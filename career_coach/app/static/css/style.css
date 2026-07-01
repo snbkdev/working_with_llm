@@ -503,6 +503,59 @@ a.brand { text-decoration: none; color: inherit; }
 
 .course-hero-rating-row { margin: 0 0 10px; }
 
+/* --- Страница ментора: форма добавления курса --- */
+.mentor-form { display: flex; flex-direction: column; gap: 16px; }
+.mentor-selects { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.mentor-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mentor-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.mentor-wide { grid-column: 1 / -1; }
+.mentor-form select, .mentor-form input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; }
+.mentor-form select:focus, .mentor-form input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.mentor-form select:disabled { opacity: .55; }
+.mentor-subhead { font-size: 15px; margin: 8px 0 0; }
+.mentor-hint { font-size: 12px; color: var(--muted); margin: -6px 0 0; }
+.mentor-lesson { display: flex; align-items: center; gap: 8px; }
+.mentor-lesson-num { width: 24px; height: 24px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); font-size: 12px; font-weight: 700; }
+.mentor-lesson-title { width: 220px; }
+.mentor-lesson-url { flex: 1; min-width: 180px; }
+.mentor-actions { margin-top: 6px; }
+.mentor-ok { font-size: 14px; color: var(--ok); font-weight: 600; margin: 0; }
+.mentor-ok a { color: var(--accent); margin-left: 6px; }
+
+@media (max-width: 720px) {
+  .mentor-selects, .mentor-fields { grid-template-columns: 1fr; }
+  .mentor-lesson { flex-wrap: wrap; }
+  .mentor-lesson-title { width: 100%; }
+}
+
+/* --- Админка: пользователи и роли --- */
+.admin-users { display: flex; flex-direction: column; gap: 8px; }
+.admin-user { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.admin-user-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-user-name { font-weight: 600; }
+.admin-user-email { font-size: 12px; color: var(--muted); }
+.admin-user select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+.admin-user.is-me select { opacity: .55; }
+.role-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 3px 9px; border-radius: 99px; }
+.role-badge.admin { color: #fff; background: var(--accent); }
+.role-badge.mentor { color: var(--accent); background: var(--accent-soft); }
+.role-badge.user { color: var(--muted); background: var(--surface-2); }
+
+/* --- Заявка в менторы (профиль) --- */
+.mentor-apply { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 520px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.mentor-apply-lead { margin: 0; font-size: 14px; color: var(--text); }
+.mentor-apply-status { margin: 0; font-size: 14px; color: var(--text); }
+.mentor-apply-rejected { margin: 0; font-size: 13px; color: var(--muted); }
+.mentor-apply-note { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; resize: vertical; }
+.mentor-apply-note:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+
+/* --- Админка: заявки в менторы --- */
+.req-count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; margin-left: 6px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; vertical-align: middle; }
+.admin-hint { font-size: 13px; color: var(--muted); margin: 0; }
+.admin-req .admin-user-main { gap: 4px; }
+.req-note { font-size: 13px; color: var(--muted); font-style: italic; }
+.req-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
 /* --- Плеер курса (страница «Просмотр») --- */
 /* Более широкий контейнер именно для страницы просмотра, чтобы видео было крупнее. */
 .flow-wide { max-width: 1240px; }
