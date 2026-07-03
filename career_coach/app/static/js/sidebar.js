@@ -54,10 +54,12 @@ const AppSidebar = {
     </nav>
 
     <nav class="nav nav-bottom">
-      <a class="nav-item" href="#" @click.prevent><span class="nav-ico">📚</span><span class="nav-label">Уроки</span></a>
-      <a class="nav-item" href="#" @click.prevent><span class="nav-ico">📝</span><span class="nav-label">Тест</span></a>
+      <a class="nav-item" :href="goalCourse ? ('/course/' + goalCourse.id + '/view') : '/goal'"><span class="nav-ico">📚</span><span class="nav-label">Уроки</span></a>
+      <a class="nav-item" :class="{ active: active === 'goal' }" href="/goal"><span class="nav-ico">🎯</span><span class="nav-label">Цель</span></a>
+      <a class="nav-item" href="/quiz"><span class="nav-ico">📝</span><span class="nav-label">Тест</span></a>
       <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🗒️</span><span class="nav-label">Заметки</span></a>
       <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🎓</span><span class="nav-label">Сертификаты</span></a>
+      <a v-if="user && user.role === 'admin'" class="nav-item" href="/admin/users"><span class="nav-ico">👥</span><span class="nav-label">Пользователи</span></a>
     </nav>
   </aside>
   `,

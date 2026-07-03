@@ -19,6 +19,8 @@ createApp({
       streak: 0,
       topicsLearned: 0,
       challengesSolved: 0,
+      // «Пройденные уроки»
+      completedLessons: [],
       // navigation
       view: "dashboard",
       menuOpen: false,
@@ -119,6 +121,7 @@ createApp({
 
     // Real dashboard counters: sum solved items across quiz/challenge topics.
     this.loadProgressCounters();
+    this.loadCompletedLessons();
 
     this.ready = true;
 
@@ -149,6 +152,14 @@ createApp({
           const topics = await cr.json();
           this.challengesSolved = topics.reduce((n, t) => n + (t.solved || 0), 0);
         }
+      } catch (e) {
+        /* ignore */
+      }
+    },
+    async loadCompletedLessons() {
+      try {
+        const res = await fetch("/api/progress/lessons");
+        if (res.ok) this.completedLessons = await res.json();
       } catch (e) {
         /* ignore */
       }

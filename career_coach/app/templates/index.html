@@ -73,10 +73,12 @@
         </nav>
 
         <nav class="nav nav-bottom">
-          <a class="nav-item" href="#" @click.prevent><span class="nav-ico">📚</span><span class="nav-label">Уроки</span></a>
-          <a class="nav-item" href="#" @click.prevent><span class="nav-ico">📝</span><span class="nav-label">Тест</span></a>
+          <a class="nav-item" :href="goalCourse ? ('/course/' + goalCourse.id + '/view') : '/goal'"><span class="nav-ico">📚</span><span class="nav-label">Уроки</span></a>
+          <a class="nav-item" href="/goal"><span class="nav-ico">🎯</span><span class="nav-label">Цель</span></a>
+          <a class="nav-item" href="/quiz"><span class="nav-ico">📝</span><span class="nav-label">Тест</span></a>
           <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🗒️</span><span class="nav-label">Заметки</span></a>
           <a class="nav-item" href="#" @click.prevent><span class="nav-ico">🎓</span><span class="nav-label">Сертификаты</span></a>
+          <a v-if="user && user.role === 'admin'" class="nav-item" href="/admin/users"><span class="nav-ico">👥</span><span class="nav-label">Пользователи</span></a>
         </nav>
       </aside>
 
@@ -101,6 +103,22 @@
               <span class="lesson-body">
                 <span class="lesson-name">{{ lesson.name }}</span>
                 <span class="lesson-desc">{{ lesson.desc }}</span>
+              </span>
+              <span class="lesson-go">→</span>
+            </a>
+          </div>
+
+          <h2 class="section-title">Пройденные уроки</h2>
+          <p v-if="!completedLessons.length" class="view-sub">
+            Пока нет пройденных уроков. Откройте курс и отметьте урок как пройденный.
+          </p>
+          <div v-else class="lesson-list">
+            <a v-for="l in completedLessons" :key="l.lesson_id" class="lesson"
+               :href="'/course/' + l.course_id + '/view?lesson=' + l.lesson_id">
+              <span class="lesson-ico">✅</span>
+              <span class="lesson-body">
+                <span class="lesson-name">{{ l.lesson_title }}</span>
+                <span class="lesson-desc">{{ l.course_title }}</span>
               </span>
               <span class="lesson-go">→</span>
             </a>

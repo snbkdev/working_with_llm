@@ -114,6 +114,7 @@ def _course_header(course) -> dict:
         "rating": course.rating,
         "reviews_count": course.reviews_count,
         "technology": tech.title if tech else None,
+        "technology_id": tech.id if tech else None,
         "technology_slug": tech.slug if tech else None,
         "subcategory": sub.title if sub else None,
         "subcategory_slug": sub.slug if sub else None,

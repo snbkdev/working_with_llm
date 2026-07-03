@@ -11,6 +11,10 @@
   <div id="app" v-cloak>
     <app-topbar active="goal"></app-topbar>
 
+    <transition name="xp-toast">
+      <div v-if="xpToast" class="xp-toast">{{ xpToast }}</div>
+    </transition>
+
     <main class="flow-page flow-wide">
       <p v-if="loading" class="flow-status">Загрузка…</p>
       <template v-else-if="course">
@@ -45,16 +49,56 @@
             </div>
             <h2 v-if="current" class="player-title">{{ current.title }}</h2>
             <p v-if="current && current.description" class="player-desc">{{ current.description }}</p>
+
+            <div v-if="user && current" class="lesson-done-bar">
+              <button class="btn-done" :class="{ on: currentDone }"
+                      :disabled="marking" @click="toggleDone">
+                <span v-if="currentDone">✓ Урок пройден</span>
+                <span v-else>Отметить пройденным</span>
+              </button>
+              <span v-if="total" class="lesson-done-progress">
+                Пройдено {{ completedCount }} из {{ total }}
+              </span>
+            </div>
+
+            <!-- Проверь себя -->
+            <section v-if="user && selfChecks.length" class="self-check">
+              <h3 class="self-check-title">Проверь себя</h3>
+              <p class="self-check-sub">Несколько вопросов по теме — за впервые верный ответ +10 XP.</p>
+              <ol class="quiz-list">
+                <li v-for="(q, i) in selfChecks" :key="q.id" class="quiz-q">
+                  <div class="quiz-q-head">
+                    <span class="quiz-q-num">{{ i + 1 }}</span>
+                    <span class="quiz-q-text">{{ q.text }}</span>
+                    <span v-if="q.solved" class="quiz-q-solved">✓ решено</span>
+                  </div>
+                  <div class="quiz-options">
+                    <button v-for="opt in q.options" :key="opt.id"
+                            class="quiz-option" :class="optionClass(q, opt)"
+                            :disabled="q.done" @click="answerSelf(q, opt.id)">
+                      <span class="quiz-option-text">{{ opt.text }}</span>
+                      <span v-if="q.feedback && explanationFor(q, opt)" class="quiz-option-exp">
+                        {{ explanationFor(q, opt) }}
+                      </span>
+                    </button>
+                  </div>
+                  <p v-if="q.feedback" class="quiz-result" :class="{ ok: q.feedback.correct }">
+                    {{ q.feedback.correct ? (q.feedback.awarded > 0 ? 'Верно! +' + q.feedback.awarded + ' XP' : 'Верно!') : 'Неверно, попробуйте ещё раз' }}
+                  </p>
+                </li>
+              </ol>
+            </section>
           </div>
 
           <aside class="player-lessons">
             <p class="player-lessons-head">Уроки · {{ playable.length }}</p>
             <button v-for="(l, i) in course.lessons" :key="l.id"
                     class="player-lesson"
-                    :class="{ on: current && l.id === current.id, novideo: !l.youtube_id }"
+                    :class="{ on: current && l.id === current.id, novideo: !l.youtube_id, done: isDone(l) }"
                     :disabled="!l.youtube_id" @click="select(l)">
               <span class="player-lesson-ico">
                 <template v-if="!l.youtube_id">🔒</template>
+                <template v-else-if="isDone(l)">✓</template>
                 <template v-else-if="current && l.id === current.id">▶️</template>
                 <template v-else>{{ i + 1 }}</template>
               </span>

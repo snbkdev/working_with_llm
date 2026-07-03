@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duckie — Пользователи</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="admin-body">
+  <div id="app" v-cloak v-if="ready">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">🦆</span>
+        <span class="brand-name">Duckie</span>
+        <span class="brand-sub">Пользователи</span>
+      </div>
+      <div class="topbar-right">
+        <a class="btn-ghost" href="/admin">Каталог</a>
+        <a class="btn-ghost" href="/app">← В портал</a>
+      </div>
+    </header>
+
+    <main class="admin-main">
+      <!-- Mentor applications -->
+      <section class="admin-block">
+        <h2>Заявки в менторы <span v-if="mentorRequests.length" class="req-count">{{ mentorRequests.length }}</span></h2>
+        <p v-if="!mentorRequests.length" class="admin-hint">Новых заявок нет.</p>
+        <div v-else class="admin-users">
+          <div v-for="r in mentorRequests" :key="r.id" class="admin-user admin-req">
+            <div class="admin-user-main">
+              <span class="admin-user-name">{{ r.name }}</span>
+              <span class="admin-user-email">{{ r.email }}</span>
+              <span v-if="r.note" class="req-note">«{{ r.note }}»</span>
+            </div>
+            <div class="req-actions">
+              <button class="btn-sm" @click="decideMentor(r, 'approve')" :disabled="busy">✓ Одобрить</button>
+              <button class="btn-sm danger" @click="decideMentor(r, 'reject')" :disabled="busy">✕ Отклонить</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users & roles -->
+      <section class="admin-block">
+        <h2>Пользователи и роли</h2>
+        <div class="admin-users">
+          <div v-for="u in users" :key="u.id" class="admin-user" :class="{ 'is-me': me && u.id === me.id }">
+            <div class="admin-user-main">
+              <span class="admin-user-name">
+                {{ u.name }}
+                <span class="role-badge" :class="u.role">{{ roleLabels[u.role] }}</span>
+                <span v-if="me && u.id === me.id" class="admin-user-email"> · это вы</span>
+              </span>
+              <span class="admin-user-email">{{ u.email }}</span>
+            </div>
+            <select :value="u.role" :disabled="busy || (me && u.id === me.id)"
+                    @change="changeRole(u, $event.target.value)">
+              <option v-for="r in roles" :key="r" :value="r">{{ roleLabels[r] }}</option>
+            </select>
+          </div>
+        </div>
+        <p v-if="error" class="admin-error">{{ error }}</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/js/admin_users.js"></script>
+</body>
+</html>

@@ -20,6 +20,7 @@ from .auth import router as auth_router
 from .catalog import router as catalog_router
 from .challenges import router as challenges_router
 from .mentor import router as mentor_router
+from .progress import router as progress_router
 from .quiz import router as quiz_router
 from .config import APP_NAME, GOAL, SLASH_COMMANDS, get_system_prompt
 from .db import init_db
@@ -45,6 +46,7 @@ app.include_router(admin_router)
 app.include_router(mentor_router)
 app.include_router(quiz_router)
 app.include_router(challenges_router)
+app.include_router(progress_router)
 
 
 class ChatRequest(BaseModel):
@@ -83,6 +85,12 @@ async def reset_password_page() -> FileResponse:
 async def admin_page() -> FileResponse:
     """Serve the admin catalog-management page (access checked client-side)."""
     return FileResponse(TEMPLATES / "admin.html")
+
+
+@app.get("/admin/users")
+async def admin_users_page() -> FileResponse:
+    """Serve the admin users/roles + mentor-applications page (access checked client-side)."""
+    return FileResponse(TEMPLATES / "admin_users.html")
 
 
 @app.get("/mentor")

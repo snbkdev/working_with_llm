@@ -608,6 +608,20 @@ a.brand { text-decoration: none; color: inherit; }
 .player-lesson-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .player-lesson-title { font-size: 14px; font-weight: 600; }
 .player-lesson-dur { font-size: 12px; color: var(--muted); }
+.player-lesson.done .player-lesson-ico { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+
+/* Отметка «урок пройден» + прогресс курса */
+.lesson-done-bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 18px; }
+.btn-done { padding: 10px 18px; border: 1.5px solid var(--accent); border-radius: 99px; background: var(--surface); color: var(--accent); font-weight: 700; font-size: 14px; cursor: pointer; transition: background .12s, color .12s, border-color .12s; }
+.btn-done:hover:not(:disabled) { background: var(--accent-soft); }
+.btn-done:disabled { opacity: .6; cursor: default; }
+.btn-done.on { background: color-mix(in srgb, var(--ok) 14%, transparent); border-color: var(--ok); color: var(--ok); }
+.lesson-done-progress { font-size: 13.5px; font-weight: 600; color: var(--muted); }
+
+/* Проверь себя (самопроверка после урока) */
+.self-check { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
+.self-check-title { font-size: 18px; margin: 0 0 4px; }
+.self-check-sub { color: var(--muted); font-size: 13.5px; margin: 0 0 16px; }
 
 @media (max-width: 820px) {
   .player { grid-template-columns: 1fr; }

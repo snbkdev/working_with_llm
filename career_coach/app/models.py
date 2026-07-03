@@ -246,6 +246,30 @@ class QuizProgress(Base):
     )
 
 
+class LessonProgress(Base):
+    """One row per lesson a user has marked completed («урок пройден»).
+
+    The row's existence means the lesson is done; used for the «Пройденные уроки»
+    list and per-course progress. No XP is tied to it (XP comes from quiz/challenge).
+    """
+
+    __tablename__ = "lesson_progress"
+    __table_args__ = (
+        UniqueConstraint("user_id", "lesson_id", name="uq_lesson_progress"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    lesson_id: Mapped[int] = mapped_column(
+        ForeignKey("lessons.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class Challenge(Base):
     """A code challenge tied to a technology (CODE CHALLENGE MODE).
 
