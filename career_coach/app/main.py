@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .admin import router as admin_router
 from .auth import router as auth_router
 from .catalog import router as catalog_router
+from .challenges import router as challenges_router
 from .mentor import router as mentor_router
 from .quiz import router as quiz_router
 from .config import APP_NAME, GOAL, SLASH_COMMANDS, get_system_prompt
@@ -43,6 +44,7 @@ app.include_router(catalog_router)
 app.include_router(admin_router)
 app.include_router(mentor_router)
 app.include_router(quiz_router)
+app.include_router(challenges_router)
 
 
 class ChatRequest(BaseModel):
@@ -93,6 +95,12 @@ async def mentor_page() -> FileResponse:
 async def quiz_page() -> FileResponse:
     """Serve the quiz page (auth checked client-side)."""
     return FileResponse(TEMPLATES / "quiz.html")
+
+
+@app.get("/challenge")
+async def challenge_page() -> FileResponse:
+    """Serve the code-challenge page (auth checked client-side)."""
+    return FileResponse(TEMPLATES / "challenge.html")
 
 
 @app.get("/goal")

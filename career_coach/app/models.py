@@ -244,3 +244,57 @@ class QuizProgress(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class Challenge(Base):
+    """A code challenge tied to a technology (CODE CHALLENGE MODE).
+
+    The user solves it on their own (there's a scratch code area that is not
+    checked) and submits the resulting value. The server compares that value to
+    the expected answer — no code is executed — and grants +100 XP on the first
+    correct submit (see ChallengeProgress).
+    """
+
+    __tablename__ = "challenges"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    technology_id: Mapped[int] = mapped_column(
+        ForeignKey("technologies.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    # 'easy' | 'medium' | 'hard' — surfaced as a coloured label in the UI.
+    difficulty: Mapped[str] = mapped_column(String(20), default="easy", nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    sample_input: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    # Optional starter code shown in the (unchecked) scratch editor.
+    starter_code: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    hint: Mapped[str] = mapped_column(String(400), default="", nullable=False)
+    # Expected answer + how to compare it. answer_kind: 'number' | 'text'.
+    # Several accepted answers may be separated by '|'.
+    answer: Mapped[str] = mapped_column(String(300), nullable=False)
+    answer_kind: Mapped[str] = mapped_column(String(10), default="number", nullable=False)
+    explanation: Mapped[str] = mapped_column(String(600), default="", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class ChallengeProgress(Base):
+    """One row per challenge a user has solved (idempotent +100 XP).
+
+    The row's existence means the +100 XP for that challenge was already granted.
+    """
+
+    __tablename__ = "challenge_progress"
+    __table_args__ = (
+        UniqueConstraint("user_id", "challenge_id", name="uq_challenge_progress"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    challenge_id: Mapped[int] = mapped_column(
+        ForeignKey("challenges.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

@@ -46,7 +46,7 @@ createApp({
       featured: [
         { command: "/learn", ico: "📖", name: "Режим обучения", desc: "Разбор темы шаг за шагом", href: null, action: null },
         { command: "/quiz", ico: "❓", name: "Квиз", desc: "Проверка знаний, +10 XP за верный ответ", href: "/quiz", action: null },
-        { command: "/challenge", ico: "⚔️", name: "Код-челлендж", desc: "Задача на код, +100 XP за решение", href: null, action: "challenge" },
+        { command: "/challenge", ico: "⚔️", name: "Код-челлендж", desc: "Задача на код, +100 XP за решение", href: "/challenge", action: null },
       ],
     };
   },
@@ -116,6 +116,10 @@ createApp({
         /* ignore */
       }
     }
+
+    // Real dashboard counters: sum solved items across quiz/challenge topics.
+    this.loadProgressCounters();
+
     this.ready = true;
 
     // Allow deep-linking straight to the profile view via /app?view=info.
@@ -128,6 +132,26 @@ createApp({
     go(view) {
       this.view = view;
       if (view === "chat") this.scrollChat();
+    },
+    async loadProgressCounters() {
+      // "Тем изучено" — сколько тем квиза начато; "Челленджей решено" — сумма
+      // решённых задач по всем темам. Ошибки тихо игнорируем.
+      try {
+        const [qr, cr] = await Promise.all([
+          fetch("/api/quiz/topics"),
+          fetch("/api/challenges/topics"),
+        ]);
+        if (qr.ok) {
+          const topics = await qr.json();
+          this.topicsLearned = topics.filter((t) => t.solved > 0).length;
+        }
+        if (cr.ok) {
+          const topics = await cr.json();
+          this.challengesSolved = topics.reduce((n, t) => n + (t.solved || 0), 0);
+        }
+      } catch (e) {
+        /* ignore */
+      }
     },
     openFeatured(item) {
       if (item.href) {

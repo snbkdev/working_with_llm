@@ -6,19 +6,16 @@ Subcategories without "technologies" simply show no courses yet in the UI.
 """
 
 # Реальные видео-курсы с YouTube (проверенные ID каналов freeCodeCamp и др.).
-# Каждый урок проигрывает видео по "youtube_id" (при желании — с определённой
-# секунды через "start"), поэтому уроки — это «главы» одного длинного видео.
+# Каждый урок проигрывает видео по "youtube_id" с начала. Уроки — это оглавление
+# (главы) одного длинного видео: точных таймкодов глав у нас нет, поэтому урок не
+# перематывает видео, а показывает, что в нём разбирается.
 # Курс привязывается к существующей технологии по пути category/subcategory/technology.
-# ID и таймкоды легко заменить на свои.
-
-# Консервативные таймкоды глав (в пределах первого часа — безопасно для любого
-# полноформатного курса) и примерная длительность каждой главы.
-_YT_STARTS = [0, 500, 1200, 2000, 3000]
-_YT_DUR = ["8 мин", "12 мин", "13 мин", "17 мин", "16 мин"]
 
 
 def _yt(category, subcategory, technology, *, id, title, author, duration, description, chapters):
-    """Собрать запись видео-курса: главы получают общие таймкоды из _YT_STARTS."""
+    """Собрать запись видео-курса. Это одно длинное видео, поэтому курс = один
+    урок с полным видео; разбираемые темы перечислены в описании урока (реальных
+    таймкодов глав у нас нет, дробить на отдельные уроки нечестно)."""
     return {
         "category": category, "subcategory": subcategory, "technology": technology,
         "youtube_id": id,
@@ -27,8 +24,7 @@ def _yt(category, subcategory, technology, *, id, title, author, duration, descr
             "url": f"https://www.youtube.com/watch?v={id}", "description": description,
         },
         "lessons": [
-            {"title": ch, "start": _YT_STARTS[i], "duration": _YT_DUR[i]}
-            for i, ch in enumerate(chapters)
+            {"title": "Полный видеокурс", "description": "В курсе: " + " · ".join(chapters)},
         ],
     }
 
@@ -45,13 +41,10 @@ SEED_YT_COURSES = [
             "description": "Бесплатный курс: синтаксис, типы, функции и ООП — одно видео, разбитое на уроки-главы.",
         },
         "lessons": [
-            {"title": "Введение и установка Python", "start": 0, "duration": "16 мин"},
-            {"title": "Переменные и типы данных", "start": 970, "duration": "20 мин"},
-            {"title": "Строки и числа", "start": 2180, "duration": "22 мин"},
-            {"title": "Списки, кортежи и словари", "start": 4200, "duration": "30 мин"},
-            {"title": "Условия и циклы", "start": 6800, "duration": "26 мин"},
-            {"title": "Функции", "start": 8600, "duration": "24 мин"},
-            {"title": "Классы и объекты (ООП)", "start": 12000, "duration": "35 мин"},
+            {"title": "Полный видеокурс",
+             "description": "В курсе: введение и установка Python · переменные и типы "
+                            "данных · строки и числа · списки, кортежи и словари · "
+                            "условия и циклы · функции · классы и объекты (ООП)"},
         ],
         "youtube_id": "rfscVS0vtbw",
     },
@@ -65,11 +58,9 @@ SEED_YT_COURSES = [
             "description": "Основы JavaScript с нуля: переменные, функции, объекты и работа с DOM.",
         },
         "lessons": [
-            {"title": "Введение в JavaScript", "start": 0, "duration": "15 мин"},
-            {"title": "Переменные и операторы", "start": 1200, "duration": "20 мин"},
-            {"title": "Функции", "start": 3600, "duration": "24 мин"},
-            {"title": "Массивы и объекты", "start": 6000, "duration": "24 мин"},
-            {"title": "Условия и циклы", "start": 8400, "duration": "20 мин"},
+            {"title": "Полный видеокурс",
+             "description": "В курсе: введение в JavaScript · переменные и операторы · "
+                            "функции · массивы и объекты · условия и циклы"},
         ],
         "youtube_id": "PkZNo7MFNFg",
     },
@@ -303,6 +294,97 @@ SEED_QUESTIONS = [
                     {"text": "=", "explanation": "= — это присваивание, а не сравнение."},
                     {"text": "equals()", "explanation": "У примитивов JS нет метода equals()."},
                 ],
+            },
+        ],
+    },
+]
+
+
+# Код-челленджи (CODE CHALLENGE MODE). Пользователь решает задачу сам (есть
+# черновик кода, он не проверяется) и присылает получившийся результат — сервер
+# сверяет его с эталоном (`answer`) без запуска кода. `answer_kind`: 'number' |
+# 'text'; несколько допустимых ответов можно перечислить через '|'.
+SEED_CHALLENGES = [
+    {
+        "category": "backend", "subcategory": "python", "technology": "python-basics",
+        "challenges": [
+            {
+                "title": "Сумма от 1 до N", "difficulty": "easy",
+                "prompt": "Посчитайте сумму всех целых чисел от 1 до N включительно "
+                          "и введите получившееся число.",
+                "sample_input": "N = 100",
+                "starter_code": "def solve(n):\n    return sum(range(1, n + 1))\n\nprint(solve(100))",
+                "hint": "Сумма арифметической прогрессии: n * (n + 1) / 2.",
+                "answer": "5050", "answer_kind": "number",
+                "explanation": "sum(range(1, 101)) = 100 * 101 / 2 = 5050.",
+            },
+            {
+                "title": "Факториал числа", "difficulty": "easy",
+                "prompt": "Вычислите факториал N (произведение всех чисел от 1 до N) "
+                          "и введите результат.",
+                "sample_input": "N = 6",
+                "starter_code": "import math\n\nprint(math.factorial(6))",
+                "hint": "6! = 1·2·3·4·5·6.",
+                "answer": "720", "answer_kind": "number",
+                "explanation": "6! = 720.",
+            },
+            {
+                "title": "Сколько гласных", "difficulty": "medium",
+                "prompt": "Посчитайте количество гласных букв (a, e, i, o, u) в слове "
+                          "«education» и введите число.",
+                "sample_input": 'word = "education"',
+                "starter_code": 'word = "education"\nvowels = "aeiou"\n'
+                                'print(sum(1 for ch in word if ch in vowels))',
+                "hint": "Пройдитесь по буквам и считайте те, что входят в «aeiou».",
+                "answer": "5", "answer_kind": "number",
+                "explanation": "Гласные в «education»: e, u, a, i, o — всего 5.",
+            },
+            {
+                "title": "Разворот строки", "difficulty": "medium",
+                "prompt": "Разверните строку «python» задом наперёд и введите результат.",
+                "sample_input": 's = "python"',
+                "starter_code": 's = "python"\nprint(s[::-1])',
+                "hint": "Срез со шагом -1: s[::-1].",
+                "answer": "nohtyp", "answer_kind": "text",
+                "explanation": "«python»[::-1] = «nohtyp».",
+            },
+        ],
+    },
+    {
+        "category": "frontend", "subcategory": "javascript", "technology": "js-core",
+        "challenges": [
+            {
+                "title": "Сумма массива", "difficulty": "easy",
+                "prompt": "Посчитайте сумму элементов массива [5, 8, 13, 21] и введите "
+                          "получившееся число.",
+                "sample_input": "arr = [5, 8, 13, 21]",
+                "starter_code": "const arr = [5, 8, 13, 21];\n"
+                                "console.log(arr.reduce((a, b) => a + b, 0));",
+                "hint": "Используйте reduce для накопления суммы.",
+                "answer": "47", "answer_kind": "number",
+                "explanation": "5 + 8 + 13 + 21 = 47.",
+            },
+            {
+                "title": "Чётные числа", "difficulty": "medium",
+                "prompt": "Сколько чётных чисел в массиве [1, 2, 3, 4, 5]? Введите число "
+                          "(результат [1,2,3,4,5].filter(x => x % 2 === 0).length).",
+                "sample_input": "arr = [1, 2, 3, 4, 5]",
+                "starter_code": "const arr = [1, 2, 3, 4, 5];\n"
+                                "console.log(arr.filter(x => x % 2 === 0).length);",
+                "hint": "Чётные — это 2 и 4.",
+                "answer": "2", "answer_kind": "number",
+                "explanation": "Чётные числа: 2 и 4 — их 2.",
+            },
+            {
+                "title": "Подсчёт символа", "difficulty": "medium",
+                "prompt": "Сколько раз буква «a» встречается в строке «javascript is "
+                          "amazing»? Введите число.",
+                "sample_input": 's = "javascript is amazing"',
+                "starter_code": 'const s = "javascript is amazing";\n'
+                                'console.log(s.split("").filter(c => c === "a").length);',
+                "hint": "Разбейте строку на символы и посчитайте совпадения.",
+                "answer": "4", "answer_kind": "number",
+                "explanation": "«jAvAscript is AmAzing» — буква «a» встречается 4 раза.",
             },
         ],
     },

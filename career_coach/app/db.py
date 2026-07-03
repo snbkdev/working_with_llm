@@ -163,9 +163,11 @@ async def seed_tree() -> None:
 
     await seed_lessons()
     await seed_youtube_courses()
+    await reconcile_video_courses()
     await seed_link_courses()
     await prune_courses_without_video()
     await seed_questions()
+    await seed_challenges()
     # Reviews/ratings are intentionally left empty for now — real user reviews
     # will be added later as a separate feature.
 
@@ -302,6 +304,64 @@ async def seed_youtube_courses() -> None:
             await session.commit()
 
 
+async def reconcile_video_courses() -> None:
+    """Свести засеянные видео-курсы к одному уроку = полное видео.
+
+    Раньше эти курсы дробились на «главы» с выдуманными таймкодами, но на деле
+    это одно длинное видео — список показывал много уроков, а играло одно и то же
+    видео с начала. Приводим уже существующие курсы к актуальному сиду: оставляем
+    ровно один урок (полное видео, темы — в описании), лишние удаляем. Ограничено
+    курсами из SEED_YT_COURSES (по названию), чтобы не трогать курсы, добавленные
+    ссылкой (там уроки — это разные видео). Идемпотентно: после сведения — no-op.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from .models import Course
+    from .seed import SEED_YT_COURSES
+
+    # title -> (youtube_id, единственный урок-спека из сида)
+    want = {
+        e["course"]["title"]: (e["youtube_id"], e["lessons"][0]) for e in SEED_YT_COURSES
+    }
+    if not want:
+        return
+    async with SessionLocal() as session:
+        courses = (
+            await session.scalars(
+                select(Course)
+                .where(Course.title.in_(want.keys()))
+                .options(selectinload(Course.lessons))
+            )
+        ).all()
+        changed = False
+        for course in courses:
+            vid, spec = want[course.title]
+            lessons = sorted(course.lessons, key=lambda l: (l.position, l.id))
+            if not lessons:
+                continue  # seed_youtube_courses уже создаст урок на пустом курсе
+            keep, *extras = lessons
+            for extra in extras:  # лишние «главы» — удаляем
+                await session.delete(extra)
+                changed = True
+            new_title = spec["title"]
+            new_desc = spec.get("description", "")
+            if (
+                keep.title != new_title or keep.description != new_desc
+                or keep.video_start != 0 or keep.duration
+                or keep.youtube_id != vid or keep.position != 0
+            ):
+                keep.title = new_title
+                keep.description = new_desc
+                keep.video_start = 0
+                keep.duration = ""
+                keep.youtube_id = vid
+                keep.position = 0
+                changed = True
+        if changed:
+            await session.commit()
+
+
 async def seed_link_courses() -> None:
     """Add courses defined by plain YouTube links (see seed.SEED_LINK_COURSES).
 
@@ -425,6 +485,50 @@ async def seed_questions() -> None:
                         )
                     )
                 session.add(question)
+                added = True
+        if added:
+            await session.commit()
+
+
+async def seed_challenges() -> None:
+    """Seed code challenges for technologies that have none yet."""
+    from sqlalchemy import func, select
+
+    from .models import Challenge
+    from .seed import SEED_CHALLENGES
+
+    async with SessionLocal() as session:
+        by_path = await _tech_by_path(session)
+        added = False
+        for entry in SEED_CHALLENGES:
+            tech = by_path.get(
+                (entry["category"], entry["subcategory"], entry["technology"])
+            )
+            if tech is None:
+                continue
+            has = await session.scalar(
+                select(func.count()).select_from(Challenge).where(
+                    Challenge.technology_id == tech.id
+                )
+            )
+            if has:
+                continue  # already seeded for this technology
+            for pos, ch in enumerate(entry["challenges"]):
+                session.add(
+                    Challenge(
+                        technology_id=tech.id,
+                        title=ch["title"],
+                        difficulty=ch.get("difficulty", "easy"),
+                        prompt=ch["prompt"],
+                        sample_input=ch.get("sample_input", ""),
+                        starter_code=ch.get("starter_code", ""),
+                        hint=ch.get("hint", ""),
+                        answer=ch["answer"],
+                        answer_kind=ch.get("answer_kind", "number"),
+                        explanation=ch.get("explanation", ""),
+                        position=pos,
+                    )
+                )
                 added = True
         if added:
             await session.commit()

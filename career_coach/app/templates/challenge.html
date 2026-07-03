@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Код-челленджи — Duckie</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app" v-cloak v-if="ready">
+    <app-topbar></app-topbar>
+
+    <transition name="xp-toast">
+      <div v-if="xpToast" class="xp-toast">{{ xpToast }}</div>
+    </transition>
+
+    <div class="layout">
+      <app-sidebar></app-sidebar>
+      <main class="content">
+        <div class="flow-page">
+
+          <!-- Выбор темы -->
+          <template v-if="view === 'topics'">
+            <h1 class="view-title">Код-челленджи</h1>
+            <p class="view-sub">Выберите тему, затем задачу. Решаете сами, вводите
+              результат — за впервые решённую задачу +100 XP.</p>
+
+            <p v-if="!topics.length" class="flow-empty">Задачи пока не добавлены.</p>
+            <div v-else class="quiz-topics">
+              <button v-for="t in topics" :key="t.technology_id" class="quiz-topic"
+                      :style="{ '--cat-color': t.color || 'var(--accent)' }" @click="openTopic(t)">
+                <span class="quiz-topic-main">
+                  <span class="quiz-topic-title">{{ t.title }}</span>
+                  <span class="quiz-topic-path" v-if="t.category">{{ t.category }} · {{ t.subcategory }}</span>
+                </span>
+                <span class="quiz-topic-progress">{{ t.solved }} / {{ t.total }}</span>
+              </button>
+            </div>
+          </template>
+
+          <!-- Список задач темы (синопсисы на выбор) -->
+          <template v-else-if="view === 'list'">
+            <button class="topbar-back quiz-back" @click="backToTopics" title="К темам">←</button>
+            <h1 class="view-title">{{ topic.title }}</h1>
+            <p class="view-sub">Выберите одну из задач ниже.</p>
+
+            <p v-if="loading" class="flow-status">Загрузка…</p>
+            <p v-else-if="!challenges.length" class="flow-empty">В этой теме пока нет задач.</p>
+
+            <div v-else class="ch-list">
+              <button v-for="c in challenges" :key="c.id" class="ch-card" @click="openChallenge(c)">
+                <span class="ch-card-head">
+                  <span class="ch-diff" :class="'ch-diff-' + c.difficulty">{{ diffLabel(c.difficulty) }}</span>
+                  <span v-if="c.solved" class="ch-card-solved">✓ решено</span>
+                </span>
+                <span class="ch-card-title">{{ c.title }}</span>
+                <span class="ch-card-prompt">{{ c.prompt }}</span>
+              </button>
+            </div>
+          </template>
+
+          <!-- Решение задачи -->
+          <template v-else-if="view === 'solve'">
+            <button class="topbar-back quiz-back" @click="backToList" title="К задачам">←</button>
+            <div class="ch-solve-head">
+              <span class="ch-diff" :class="'ch-diff-' + challenge.difficulty">{{ diffLabel(challenge.difficulty) }}</span>
+              <span v-if="challenge.solved" class="ch-card-solved">✓ решено</span>
+            </div>
+            <h1 class="view-title">{{ challenge.title }}</h1>
+            <p class="ch-prompt">{{ challenge.prompt }}</p>
+            <p v-if="challenge.sample_input" class="ch-sample">Вход: <code>{{ challenge.sample_input }}</code></p>
+
+            <label class="ch-field">
+              <span class="ch-field-label">Черновик кода (не проверяется — решайте у себя)</span>
+              <textarea v-model="draft" class="ch-code" rows="8" spellcheck="false"></textarea>
+            </label>
+
+            <p v-if="showHint && challenge.hint" class="ch-hint">💡 {{ challenge.hint }}</p>
+            <button v-else-if="challenge.hint && !challenge.solved" class="btn-link ch-hint-btn"
+                    @click="showHint = true">Показать подсказку</button>
+
+            <label class="ch-field">
+              <span class="ch-field-label">
+                Ваш ответ ({{ challenge.answer_kind === 'number' ? 'число' : 'текст' }})
+              </span>
+              <input v-model="answer" class="ch-answer" :disabled="challenge.solved"
+                     :placeholder="challenge.answer_kind === 'number' ? 'например, 42' : 'введите результат'"
+                     @keyup.enter="submit">
+            </label>
+
+            <div class="ch-actions">
+              <button class="btn-primary" :disabled="submitting || challenge.solved || !answer.trim()"
+                      @click="submit">
+                {{ challenge.solved ? 'Решено' : (submitting ? 'Проверка…' : 'Проверить') }}
+              </button>
+            </div>
+
+            <p v-if="feedback" class="quiz-result" :class="{ ok: feedback.correct }">
+              <template v-if="feedback.correct">
+                {{ feedback.awarded > 0 ? 'Верно! +' + feedback.awarded + ' XP' : 'Верно!' }}
+                <span v-if="feedback.explanation" class="ch-explanation">{{ feedback.explanation }}</span>
+              </template>
+              <template v-else>Неверно — проверьте решение и попробуйте ещё раз.</template>
+            </p>
+          </template>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/topbar.js"></script>
+  <script src="/static/js/sidebar.js"></script>
+  <script src="/static/js/challenge.js"></script>
+</body>
+</html>
