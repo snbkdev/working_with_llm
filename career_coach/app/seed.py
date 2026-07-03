@@ -260,6 +260,176 @@ SEED_QUESTIONS = [
                     {"text": "frozenset", "explanation": "frozenset — неизменяемое множество."},
                 ],
             },
+            {
+                "text": "Как узнать длину списка nums?",
+                "options": [
+                    {"text": "len(nums)", "correct": True,
+                     "explanation": "Встроенная функция len() возвращает количество элементов."},
+                    {"text": "nums.length", "explanation": ".length — это JavaScript, не Python."},
+                    {"text": "nums.size()", "explanation": "У списка нет метода size()."},
+                    {"text": "count(nums)", "explanation": "Глобальной функции count() нет; есть метод list.count(x)."},
+                ],
+            },
+            {
+                "text": "Какой индекс у первого элемента списка?",
+                "options": [
+                    {"text": "0", "correct": True,
+                     "explanation": "Индексация в Python начинается с нуля."},
+                    {"text": "1", "explanation": "С единицы индексируют в некоторых других языках."},
+                    {"text": "-1", "explanation": "-1 — это последний элемент, а не первый."},
+                    {"text": "None", "explanation": "Индекс — это число, первый элемент имеет индекс 0."},
+                ],
+            },
+            {
+                "text": "Какой оператор возводит число в степень?",
+                "options": [
+                    {"text": "**", "correct": True,
+                     "explanation": "2 ** 3 == 8 — двойная звёздочка это степень."},
+                    {"text": "^", "explanation": "^ в Python — это побитовое XOR, а не степень."},
+                    {"text": "//", "explanation": "// — целочисленное деление."},
+                    {"text": "%%", "explanation": "Такого оператора в Python нет."},
+                ],
+            },
+            {
+                "text": "Чему равно 7 // 2?",
+                "options": [
+                    {"text": "3", "correct": True,
+                     "explanation": "// — целочисленное деление, дробная часть отбрасывается."},
+                    {"text": "3.5", "explanation": "3.5 даёт обычное деление /, а не //."},
+                    {"text": "4", "explanation": "// округляет вниз, а не вверх."},
+                    {"text": "1", "explanation": "1 — это остаток (7 % 2), а не результат деления."},
+                ],
+            },
+            {
+                "text": "Как добавить элемент в конец списка nums?",
+                "options": [
+                    {"text": "nums.append(x)", "correct": True,
+                     "explanation": "append() добавляет элемент в конец списка."},
+                    {"text": "nums.push(x)", "explanation": "push() — это JavaScript, в Python его нет."},
+                    {"text": "nums.add(x)", "explanation": "add() есть у множеств (set), не у списков."},
+                    {"text": "nums.insert(x)", "explanation": "insert требует индекс: insert(i, x)."},
+                ],
+            },
+            {
+                "text": "Что вернёт \"Hello\".lower()?",
+                "options": [
+                    {"text": "\"hello\"", "correct": True,
+                     "explanation": "lower() переводит все буквы в нижний регистр."},
+                    {"text": "\"HELLO\"", "explanation": "В верхний регистр переводит upper()."},
+                    {"text": "\"Hello\"", "explanation": "lower() меняет регистр, строка не остаётся прежней."},
+                    {"text": "Ошибка", "explanation": "lower() — корректный метод строк."},
+                ],
+            },
+            {
+                "text": "Как правильно объявить словарь?",
+                "options": [
+                    {"text": "d = {}", "correct": True,
+                     "explanation": "Фигурные скобки создают пустой словарь."},
+                    {"text": "d = []", "explanation": "Квадратные скобки создают список."},
+                    {"text": "d = ()", "explanation": "Круглые скобки создают кортеж."},
+                    {"text": "d = <>", "explanation": "Такого синтаксиса в Python нет."},
+                ],
+            },
+            {
+                "text": "Как проверить, есть ли ключ \"id\" в словаре d?",
+                "options": [
+                    {"text": "\"id\" in d", "correct": True,
+                     "explanation": "Оператор in проверяет наличие ключа в словаре."},
+                    {"text": "d.has(\"id\")", "explanation": "Метода has() у словаря нет."},
+                    {"text": "d.contains(\"id\")", "explanation": "contains() — это не Python."},
+                    {"text": "has_key(d, \"id\")", "explanation": "Глобальной has_key нет (метод убрали в Python 3)."},
+                ],
+            },
+            {
+                "text": "Что вернёт bool(\"\") (пустая строка)?",
+                "options": [
+                    {"text": "False", "correct": True,
+                     "explanation": "Пустая строка считается «ложной» (falsy)."},
+                    {"text": "True", "explanation": "True вернёт непустая строка."},
+                    {"text": "\"\"", "explanation": "bool() возвращает True или False, а не строку."},
+                    {"text": "Ошибка", "explanation": "bool() принимает любой объект без ошибки."},
+                ],
+            },
+            {
+                "text": "Чему равен срез \"python\"[1:4]?",
+                "options": [
+                    {"text": "\"yth\"", "correct": True,
+                     "explanation": "Берутся символы с индексами 1, 2, 3 (4 не включается)."},
+                    {"text": "\"pyth\"", "explanation": "Срез начинается с индекса 1, а не 0."},
+                    {"text": "\"ytho\"", "explanation": "Правая граница 4 не включается в срез."},
+                    {"text": "\"yt\"", "explanation": "Это был бы срез [1:3]."},
+                ],
+            },
+            {
+                "text": "Как перебрать числа от 0 до 4 включительно?",
+                "options": [
+                    {"text": "for i in range(5)", "correct": True,
+                     "explanation": "range(5) даёт 0, 1, 2, 3, 4."},
+                    {"text": "for i in range(1, 5)", "explanation": "Это 1, 2, 3, 4 — без нуля."},
+                    {"text": "for i in range(4)", "explanation": "Это 0, 1, 2, 3 — без четырёх."},
+                    {"text": "for i in [0..4]", "explanation": "Синтаксиса [0..4] в Python нет."},
+                ],
+            },
+            {
+                "text": "Как преобразовать строку \"42\" в целое число?",
+                "options": [
+                    {"text": "int(\"42\")", "correct": True,
+                     "explanation": "int() преобразует строку в целое число."},
+                    {"text": "str(42)", "explanation": "str() наоборот делает из числа строку."},
+                    {"text": "parseInt(\"42\")", "explanation": "parseInt — это JavaScript."},
+                    {"text": "\"42\".toInt()", "explanation": "Метода toInt() у строк нет."},
+                ],
+            },
+            {
+                "text": "Сколько элементов в множестве {1, 2, 2, 3}?",
+                "options": [
+                    {"text": "3", "correct": True,
+                     "explanation": "Множество хранит только уникальные значения, дубли убираются."},
+                    {"text": "4", "explanation": "Повторяющаяся 2 в множестве не дублируется."},
+                    {"text": "2", "explanation": "Уникальных значений три: 1, 2, 3."},
+                    {"text": "Ошибка", "explanation": "Повторы в литерале множества допустимы, ошибки нет."},
+                ],
+            },
+            {
+                "text": "Как оформить однострочный комментарий в Python?",
+                "options": [
+                    {"text": "# комментарий", "correct": True,
+                     "explanation": "Комментарии начинаются с символа #."},
+                    {"text": "// комментарий", "explanation": "// — это C/JavaScript."},
+                    {"text": "/* комментарий */", "explanation": "/* */ — тоже не Python."},
+                    {"text": "-- комментарий", "explanation": "-- используется в SQL, не в Python."},
+                ],
+            },
+            {
+                "text": "Что вернёт type(3.0)?",
+                "options": [
+                    {"text": "<class 'float'>", "correct": True,
+                     "explanation": "Число с точкой — это тип float."},
+                    {"text": "<class 'int'>", "explanation": "int был бы у 3 без точки."},
+                    {"text": "<class 'double'>", "explanation": "Типа double в Python нет, дробные — это float."},
+                    {"text": "<class 'number'>", "explanation": "Общего типа number в Python нет."},
+                ],
+            },
+            {
+                "text": "Чему равно \"ab\" * 3?",
+                "options": [
+                    {"text": "\"ababab\"", "correct": True,
+                     "explanation": "Умножение строки на число повторяет её."},
+                    {"text": "\"ab3\"", "explanation": "Число не приписывается к строке."},
+                    {"text": "6", "explanation": "Строка не превращается в число."},
+                    {"text": "Ошибка", "explanation": "str * int — допустимая операция."},
+                ],
+            },
+            {
+                "text": "Что делает оператор == ?",
+                "options": [
+                    {"text": "Сравнивает значения", "correct": True,
+                     "explanation": "== проверяет равенство значений и возвращает bool."},
+                    {"text": "Присваивает значение", "explanation": "Присваивание — это одиночное =."},
+                    {"text": "Сравнивает, один ли это объект", "explanation": "Идентичность объектов проверяет is."},
+                    {"text": "Объявляет переменную", "explanation": "Переменную объявляют присваиванием =."},
+                ],
+            },
         ],
     },
     {
@@ -293,6 +463,166 @@ SEED_QUESTIONS = [
                     {"text": "==", "explanation": "== приводит типы перед сравнением."},
                     {"text": "=", "explanation": "= — это присваивание, а не сравнение."},
                     {"text": "equals()", "explanation": "У примитивов JS нет метода equals()."},
+                ],
+            },
+            {
+                "text": "Как объявить константу в JavaScript?",
+                "options": [
+                    {"text": "const x = 5", "correct": True,
+                     "explanation": "const создаёт переменную, которую нельзя переприсвоить."},
+                    {"text": "let x = 5", "explanation": "let создаёт изменяемую переменную, не константу."},
+                    {"text": "constant x = 5", "explanation": "Ключевого слова constant в JS нет."},
+                    {"text": "final x = 5", "explanation": "final — это Java, не JavaScript."},
+                ],
+            },
+            {
+                "text": "Что вернёт typeof null?",
+                "options": [
+                    {"text": "\"object\"", "correct": True,
+                     "explanation": "Это известная историческая особенность JS: typeof null === 'object'."},
+                    {"text": "\"null\"", "explanation": "Отдельного типа 'null' у typeof нет."},
+                    {"text": "\"undefined\"", "explanation": "undefined и null — разные значения."},
+                    {"text": "\"number\"", "explanation": "null — это не число."},
+                ],
+            },
+            {
+                "text": "Чему равно 2 + \"2\" в JavaScript?",
+                "options": [
+                    {"text": "\"22\"", "correct": True,
+                     "explanation": "С '+' число приводится к строке, происходит конкатенация."},
+                    {"text": "4", "explanation": "Сложения чисел не будет — одна из сторон строка."},
+                    {"text": "22", "explanation": "Результат — строка \"22\", а не число."},
+                    {"text": "NaN", "explanation": "Конкатенация корректна, NaN не возникает."},
+                ],
+            },
+            {
+                "text": "Чему равно \"5\" - 2?",
+                "options": [
+                    {"text": "3", "correct": True,
+                     "explanation": "Оператор '-' приводит строку к числу: 5 - 2 = 3."},
+                    {"text": "\"3\"", "explanation": "Результат — число, а не строка."},
+                    {"text": "\"52\"", "explanation": "Конкатенация была бы с '+', а не с '-'."},
+                    {"text": "NaN", "explanation": "\"5\" успешно приводится к числу 5."},
+                ],
+            },
+            {
+                "text": "Как добавить элемент в конец массива arr?",
+                "options": [
+                    {"text": "arr.push(x)", "correct": True,
+                     "explanation": "push() добавляет элемент в конец массива."},
+                    {"text": "arr.append(x)", "explanation": "Метода append() у массива нет."},
+                    {"text": "arr.add(x)", "explanation": "add() есть у Set, не у массива."},
+                    {"text": "arr.pop()", "explanation": "pop() наоборот удаляет последний элемент."},
+                ],
+            },
+            {
+                "text": "Что вернёт Boolean(0)?",
+                "options": [
+                    {"text": "false", "correct": True,
+                     "explanation": "0 — «ложное» (falsy) значение."},
+                    {"text": "true", "explanation": "true дают ненулевые числа."},
+                    {"text": "0", "explanation": "Boolean() возвращает true/false, а не число."},
+                    {"text": "NaN", "explanation": "Boolean() не возвращает NaN."},
+                ],
+            },
+            {
+                "text": "Чему равно 10 % 3?",
+                "options": [
+                    {"text": "1", "correct": True,
+                     "explanation": "% — остаток от деления: 10 = 3*3 + 1."},
+                    {"text": "3", "explanation": "3 — это частное (10 / 3 округлённо), а не остаток."},
+                    {"text": "0", "explanation": "10 не делится на 3 без остатка."},
+                    {"text": "3.33", "explanation": "% даёт остаток (целое), а не дробное деление."},
+                ],
+            },
+            {
+                "text": "Как объявить стрелочную функцию?",
+                "options": [
+                    {"text": "const f = () => {}", "correct": True,
+                     "explanation": "Стрелочная функция: аргументы => тело."},
+                    {"text": "const f = function() => {}", "explanation": "Нельзя совмещать function и =>."},
+                    {"text": "def f(): {}", "explanation": "def — это Python."},
+                    {"text": "func f() {}", "explanation": "func — это Go/Swift, не JS."},
+                ],
+            },
+            {
+                "text": "Что вернёт typeof function(){}?",
+                "options": [
+                    {"text": "\"function\"", "correct": True,
+                     "explanation": "Для функций typeof возвращает 'function'."},
+                    {"text": "\"object\"", "explanation": "Хотя функции — объекты, typeof выделяет их как 'function'."},
+                    {"text": "\"method\"", "explanation": "Типа 'method' у typeof нет."},
+                    {"text": "\"undefined\"", "explanation": "Функция определена, это не undefined."},
+                ],
+            },
+            {
+                "text": "Что вернёт 1 == \"1\" (нестрогое сравнение)?",
+                "options": [
+                    {"text": "true", "correct": True,
+                     "explanation": "== приводит типы: \"1\" становится числом 1, они равны."},
+                    {"text": "false", "explanation": "false было бы при строгом === (разные типы)."},
+                    {"text": "NaN", "explanation": "Сравнение возвращает boolean, не NaN."},
+                    {"text": "Ошибка", "explanation": "Сравнение допустимо, ошибки нет."},
+                ],
+            },
+            {
+                "text": "Как вывести значение в консоль браузера?",
+                "options": [
+                    {"text": "console.log(x)", "correct": True,
+                     "explanation": "console.log() — стандартный вывод в консоль."},
+                    {"text": "print(x)", "explanation": "print() — это Python."},
+                    {"text": "echo x", "explanation": "echo — это PHP/bash."},
+                    {"text": "System.out.println(x)", "explanation": "Это Java."},
+                ],
+            },
+            {
+                "text": "Какой метод создаёт новый массив, применяя функцию к каждому элементу?",
+                "options": [
+                    {"text": "map()", "correct": True,
+                     "explanation": "map() возвращает новый массив с преобразованными элементами."},
+                    {"text": "forEach()", "explanation": "forEach() просто перебирает и возвращает undefined."},
+                    {"text": "filter()", "explanation": "filter() отбирает по условию, а не преобразует."},
+                    {"text": "push()", "explanation": "push() добавляет элемент, а не создаёт новый массив."},
+                ],
+            },
+            {
+                "text": "Что вернёт [1, 2, 3].indexOf(2)?",
+                "options": [
+                    {"text": "1", "correct": True,
+                     "explanation": "indexOf возвращает индекс первого совпадения; у 2 индекс 1."},
+                    {"text": "2", "explanation": "2 — это само значение, а не его индекс."},
+                    {"text": "0", "explanation": "0 — индекс элемента 1, а не 2."},
+                    {"text": "-1", "explanation": "-1 вернулось бы, если элемента нет в массиве."},
+                ],
+            },
+            {
+                "text": "Как получить длину строки s = \"abc\"?",
+                "options": [
+                    {"text": "s.length", "correct": True,
+                     "explanation": "У строк есть свойство length."},
+                    {"text": "s.size()", "explanation": "Метода size() у строк нет."},
+                    {"text": "len(s)", "explanation": "len() — это Python."},
+                    {"text": "s.count", "explanation": "Свойства count у строки нет."},
+                ],
+            },
+            {
+                "text": "Для чего нужен JSON.stringify()?",
+                "options": [
+                    {"text": "Превратить объект в JSON-строку", "correct": True,
+                     "explanation": "stringify сериализует объект в строку JSON."},
+                    {"text": "Разобрать JSON-строку в объект", "explanation": "Разбором занимается JSON.parse()."},
+                    {"text": "Скопировать массив", "explanation": "Это не задача JSON.stringify."},
+                    {"text": "Округлить число", "explanation": "К числам и округлению отношения не имеет."},
+                ],
+            },
+            {
+                "text": "Что вернёт typeof undefined?",
+                "options": [
+                    {"text": "\"undefined\"", "correct": True,
+                     "explanation": "У значения undefined тип тоже 'undefined'."},
+                    {"text": "\"object\"", "explanation": "'object' возвращает typeof null, а не undefined."},
+                    {"text": "\"null\"", "explanation": "Типа 'null' у typeof нет."},
+                    {"text": "\"none\"", "explanation": "Типа 'none' в JS не существует."},
                 ],
             },
         ],

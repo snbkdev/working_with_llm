@@ -451,8 +451,9 @@ async def prune_courses_without_video() -> None:
 
 
 async def seed_questions() -> None:
-    """Seed quiz questions/options for technologies that have none yet."""
-    from sqlalchemy import func, select
+    """Seed quiz questions/options. Incremental: adds any seed question whose text
+    is not yet present for its technology, so growing the bank later just works."""
+    from sqlalchemy import select
 
     from .models import Question, QuestionOption
     from .seed import SEED_QUESTIONS
@@ -466,15 +467,18 @@ async def seed_questions() -> None:
             )
             if tech is None:
                 continue
-            has = await session.scalar(
-                select(func.count()).select_from(Question).where(
-                    Question.technology_id == tech.id
+            existing = (
+                await session.scalars(
+                    select(Question).where(Question.technology_id == tech.id)
                 )
-            )
-            if has:
-                continue  # already seeded for this technology
-            for qpos, q in enumerate(entry["questions"]):
-                question = Question(technology_id=tech.id, text=q["text"], position=qpos)
+            ).all()
+            existing_texts = {q.text for q in existing}
+            pos = len(existing)
+            for q in entry["questions"]:
+                if q["text"] in existing_texts:
+                    continue  # already seeded this question
+                question = Question(technology_id=tech.id, text=q["text"], position=pos)
+                pos += 1
                 for opos, o in enumerate(q["options"]):
                     question.options.append(
                         QuestionOption(

@@ -648,6 +648,7 @@ a.brand { text-decoration: none; color: inherit; }
 .quiz-option { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 11px; background: var(--surface-2); color: var(--text); cursor: pointer; transition: border-color .12s, background .12s; }
 .quiz-option:hover:not(:disabled) { border-color: var(--accent); }
 .quiz-option:disabled { cursor: default; }
+.quiz-option.picked { border-color: var(--accent); background: var(--accent-soft); }
 .quiz-option.correct { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .quiz-option.wrong { border-color: #e0344b; background: color-mix(in srgb, #e0344b 12%, transparent); }
 .quiz-option-text { font-size: 14px; font-weight: 600; }
@@ -655,8 +656,58 @@ a.brand { text-decoration: none; color: inherit; }
 .quiz-result { margin: 12px 0 0; font-size: 14px; font-weight: 600; color: #e0344b; }
 .quiz-result.ok { color: var(--ok); }
 
+.quiz-progress-count { display: inline-block; margin-left: 8px; font-weight: 700; color: var(--accent); }
+
+/* Итог теста + история сдач */
+.quiz-summary { margin: 4px 0 22px; padding: 18px 20px; border: 1px solid var(--border); border-left: 5px solid var(--accent); border-radius: 14px; background: var(--surface); }
+.quiz-summary.g-great { border-left-color: var(--ok); }
+.quiz-summary.g-good { border-left-color: #22a06b; }
+.quiz-summary.g-ok { border-left-color: #f59e0b; }
+.quiz-summary.g-low { border-left-color: #e0344b; }
+.quiz-summary-grade { display: flex; align-items: center; gap: 16px; }
+.quiz-summary-ico { font-size: 40px; line-height: 1; }
+.quiz-summary-main { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.quiz-summary-label { font-size: 20px; font-weight: 800; }
+.quiz-summary-score { font-size: 14px; color: var(--muted); }
+.quiz-summary-trend { font-size: 13px; font-weight: 700; margin-top: 2px; }
+.quiz-summary-trend.t-up { color: var(--ok); }
+.quiz-summary-trend.t-down { color: #e0344b; }
+.quiz-summary-trend.t-same { color: var(--muted); }
+.quiz-retake { flex-shrink: 0; }
+.quiz-history { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.quiz-history-head { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 10px; }
+.quiz-history-row { display: flex; align-items: center; gap: 12px; padding: 5px 0; }
+.quiz-history-row.latest { font-weight: 700; }
+.quiz-history-date { font-size: 12.5px; color: var(--muted); width: 130px; flex-shrink: 0; }
+.quiz-history-bar { flex: 1; height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.quiz-history-fill { height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); border-radius: 99px; }
+.quiz-history-pct { font-size: 13px; width: 108px; text-align: right; flex-shrink: 0; }
+
+/* Кнопка «Сдать» */
+.quiz-submit-bar { display: flex; align-items: center; gap: 16px; margin: 22px 0 8px; }
+.quiz-submit-btn { padding: 12px 32px; font-size: 15px; }
+.quiz-submit-hint { font-size: 13.5px; color: var(--muted); }
+
+/* Разбор ошибок */
+.quiz-errors { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.quiz-errors-head { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 10px; }
+.quiz-error-item { display: flex; flex-direction: column; gap: 3px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+.quiz-error-item:last-child { border-bottom: 0; }
+.quiz-error-link { font-weight: 600; color: var(--accent); text-decoration: none; }
+.quiz-error-link:hover { text-decoration: underline; }
+.quiz-error-correct { font-size: 13.5px; color: var(--ok); font-weight: 600; }
+.quiz-error-exp { font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+/* Подсветка вопроса после сдачи + якорь-отступ */
+.quiz-q { scroll-margin-top: 90px; }
+.quiz-q.q-wrong { border-color: color-mix(in srgb, #e0344b 45%, var(--border)); }
+.quiz-q.q-ok { border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.quiz-q-mark { font-size: 15px; white-space: nowrap; }
+
 @media (max-width: 720px) {
   .quiz-topics { grid-template-columns: 1fr; }
+  .quiz-summary-grade { flex-wrap: wrap; }
+  .quiz-history-date { width: 92px; }
 }
 
 /* --- Код-челленджи --- */

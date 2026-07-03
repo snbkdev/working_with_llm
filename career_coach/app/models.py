@@ -246,6 +246,31 @@ class QuizProgress(Base):
     )
 
 
+class QuizAttempt(Base):
+    """A completed quiz run for one topic (technology): score + percent + when.
+
+    Kept as history so the user can see whether their knowledge is trending up or
+    down over repeated attempts. Unlike QuizProgress (per-question, idempotent XP),
+    every finished test appends a new row here.
+    """
+
+    __tablename__ = "quiz_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    technology_id: Mapped[int] = mapped_column(
+        ForeignKey("technologies.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    correct: Mapped[int] = mapped_column(Integer, nullable=False)
+    total: Mapped[int] = mapped_column(Integer, nullable=False)
+    percent: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class LessonProgress(Base):
     """One row per lesson a user has marked completed («урок пройден»).
 

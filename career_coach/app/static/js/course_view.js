@@ -133,7 +133,11 @@ const app = createApp({
         const res = await fetch(`/api/quiz/topics/${techId}/questions`);
         if (res.ok) {
           const data = await res.json();
-          this.selfChecks = data.map((q) => ({ ...q, picked: null, feedback: null, done: false }));
+          // Быстрая самопроверка после урока — несколько вопросов, а не весь банк
+          // (полный тест из 20+ вопросов доступен в разделе «Тест»).
+          this.selfChecks = data
+            .slice(0, 5)
+            .map((q) => ({ ...q, picked: null, feedback: null, done: false }));
         }
       } catch (e) {
         /* ignore */

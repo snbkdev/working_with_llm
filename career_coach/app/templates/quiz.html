@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Тест — Duckie</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=2">
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
 <body>
@@ -42,33 +42,77 @@
           <template v-else>
             <button class="topbar-back quiz-back" @click="backToTopics" title="К темам">←</button>
             <h1 class="view-title">{{ topic.title }}</h1>
-            <p class="view-sub">Выберите правильный вариант — сразу увидите объяснение.</p>
+            <p class="view-sub">
+              Выберите ответы на все вопросы и нажмите «Сдать» внизу — тогда покажем результат.
+              <span v-if="questions.length && !submitted" class="quiz-progress-count">Отвечено {{ answeredCount }} из {{ questions.length }}</span>
+            </p>
 
             <p v-if="loading" class="flow-status">Загрузка…</p>
             <p v-else-if="!questions.length" class="flow-empty">В этой теме пока нет вопросов.</p>
 
-            <ol v-else class="quiz-list">
-              <li v-for="(q, i) in questions" :key="q.id" class="quiz-q">
+            <ol v-if="questions.length" class="quiz-list">
+              <li v-for="(q, i) in questions" :key="q.id" class="quiz-q" :id="'q-' + q.id"
+                  :class="{ 'q-wrong': submitted && resultOf(q) && !resultOf(q).correct, 'q-ok': submitted && resultOf(q) && resultOf(q).correct }">
                 <div class="quiz-q-head">
                   <span class="quiz-q-num">{{ i + 1 }}</span>
                   <span class="quiz-q-text">{{ q.text }}</span>
-                  <span v-if="q.solved" class="quiz-q-solved">✓ решено</span>
+                  <span v-if="submitted && resultOf(q)" class="quiz-q-mark" :class="{ ok: resultOf(q).correct }">
+                    {{ resultOf(q).correct ? '✅' : '❌' }}
+                  </span>
                 </div>
                 <div class="quiz-options">
                   <button v-for="opt in q.options" :key="opt.id"
                           class="quiz-option" :class="optionClass(q, opt)"
-                          :disabled="q.done" @click="answer(q, opt.id)">
+                          :disabled="submitted" @click="pick(q, opt.id)">
                     <span class="quiz-option-text">{{ opt.text }}</span>
-                    <span v-if="q.feedback && explanationFor(q, opt)" class="quiz-option-exp">
+                    <span v-if="submitted && explanationFor(q, opt)" class="quiz-option-exp">
                       {{ explanationFor(q, opt) }}
                     </span>
                   </button>
                 </div>
-                <p v-if="q.feedback" class="quiz-result" :class="{ ok: q.feedback.correct }">
-                  {{ q.feedback.correct ? (q.feedback.awarded > 0 ? 'Верно! +' + q.feedback.awarded + ' XP' : 'Верно!') : 'Неверно, попробуйте ещё раз' }}
-                </p>
               </li>
             </ol>
+
+            <div v-if="questions.length && !submitted" class="quiz-submit-bar">
+              <button class="btn-primary quiz-submit-btn" :disabled="submitting" @click="submit">
+                {{ submitting ? 'Проверка…' : 'Сдать' }}
+              </button>
+              <span class="quiz-submit-hint">Отвечено {{ answeredCount }} из {{ questions.length }}</span>
+            </div>
+
+            <!-- Итог теста (внизу, после нажатия «Сдать») -->
+            <div v-if="submitted" id="quiz-summary" class="quiz-summary" :class="grade.cls">
+              <div class="quiz-summary-grade">
+                <span class="quiz-summary-ico">{{ grade.ico }}</span>
+                <div class="quiz-summary-main">
+                  <span class="quiz-summary-label">{{ grade.label }}</span>
+                  <span class="quiz-summary-score">
+                    ✅ {{ correctCount }} верно · ❌ {{ wrongCount }} с ошибкой · {{ scorePct }}%
+                  </span>
+                  <span v-if="trend" class="quiz-summary-trend" :class="'t-' + trend.dir">{{ trend.text }}</span>
+                </div>
+                <button class="btn-primary quiz-retake" @click="retake">Пройти заново</button>
+              </div>
+
+              <!-- Разбор ошибок -->
+              <div v-if="wrongList.length" class="quiz-errors">
+                <p class="quiz-errors-head">Разбор ошибок</p>
+                <div v-for="w in wrongList" :key="w.id" class="quiz-error-item">
+                  <a class="quiz-error-link" :href="'#q-' + w.id">Вопрос {{ w.num }}. {{ w.text }}</a>
+                  <span class="quiz-error-correct">Верно: {{ w.correctText }}</span>
+                  <span v-if="w.explanation" class="quiz-error-exp">{{ w.explanation }}</span>
+                </div>
+              </div>
+
+              <div v-if="history.length" class="quiz-history">
+                <p class="quiz-history-head">История сдач</p>
+                <div v-for="(h, i) in history" :key="h.id" class="quiz-history-row" :class="{ latest: i === 0 }">
+                  <span class="quiz-history-date">{{ fmtDate(h.created_at) }}</span>
+                  <div class="quiz-history-bar"><div class="quiz-history-fill" :style="{ width: h.percent + '%' }"></div></div>
+                  <span class="quiz-history-pct">{{ h.correct }}/{{ h.total }} · {{ h.percent }}%</span>
+                </div>
+              </div>
+            </div>
           </template>
 
         </div>
@@ -78,6 +122,6 @@
 
   <script src="/static/js/topbar.js"></script>
   <script src="/static/js/sidebar.js"></script>
-  <script src="/static/js/quiz.js"></script>
+  <script src="/static/js/quiz.js?v=2"></script>
 </body>
 </html>
