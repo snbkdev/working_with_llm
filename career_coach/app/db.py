@@ -165,6 +165,7 @@ async def seed_tree() -> None:
     await seed_youtube_courses()
     await seed_link_courses()
     await prune_courses_without_video()
+    await seed_questions()
     # Reviews/ratings are intentionally left empty for now — real user reviews
     # will be added later as a separate feature.
 
@@ -387,3 +388,43 @@ async def prune_courses_without_video() -> None:
         logging.getLogger("duckie").info(
             "Удалено курсов без видео: %d (оставлены только видео-курсы)", len(to_delete)
         )
+
+
+async def seed_questions() -> None:
+    """Seed quiz questions/options for technologies that have none yet."""
+    from sqlalchemy import func, select
+
+    from .models import Question, QuestionOption
+    from .seed import SEED_QUESTIONS
+
+    async with SessionLocal() as session:
+        by_path = await _tech_by_path(session)
+        added = False
+        for entry in SEED_QUESTIONS:
+            tech = by_path.get(
+                (entry["category"], entry["subcategory"], entry["technology"])
+            )
+            if tech is None:
+                continue
+            has = await session.scalar(
+                select(func.count()).select_from(Question).where(
+                    Question.technology_id == tech.id
+                )
+            )
+            if has:
+                continue  # already seeded for this technology
+            for qpos, q in enumerate(entry["questions"]):
+                question = Question(technology_id=tech.id, text=q["text"], position=qpos)
+                for opos, o in enumerate(q["options"]):
+                    question.options.append(
+                        QuestionOption(
+                            text=o["text"],
+                            is_correct=o.get("correct", False),
+                            explanation=o.get("explanation", ""),
+                            position=opos,
+                        )
+                    )
+                session.add(question)
+                added = True
+        if added:
+            await session.commit()

@@ -186,3 +186,61 @@ class Review(Base):
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     course: Mapped["Course"] = relationship(back_populates="reviews")
+
+
+class Question(Base):
+    """A quiz question tied to a technology (topic). Options live in a separate
+    table (question_options); their display order is shuffled by the API."""
+
+    __tablename__ = "questions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    technology_id: Mapped[int] = mapped_column(
+        ForeignKey("technologies.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    text: Mapped[str] = mapped_column(String(500), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    options: Mapped[list["QuestionOption"]] = relationship(
+        back_populates="question",
+        cascade="all, delete-orphan",
+        order_by="QuestionOption.position",
+    )
+
+
+class QuestionOption(Base):
+    """An answer option for a question, with a per-option explanation."""
+
+    __tablename__ = "question_options"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("questions.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    text: Mapped[str] = mapped_column(String(300), nullable=False)
+    is_correct: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    explanation: Mapped[str] = mapped_column(String(400), default="", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    question: Mapped["Question"] = relationship(back_populates="options")
+
+
+class QuizProgress(Base):
+    """One row per question a user has answered correctly (idempotent XP).
+
+    The row's existence means the +10 XP for that question was already granted.
+    """
+
+    __tablename__ = "quiz_progress"
+    __table_args__ = (UniqueConstraint("user_id", "question_id", name="uq_quiz_progress"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("questions.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

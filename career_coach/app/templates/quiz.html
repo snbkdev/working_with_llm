@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Тест — Duckie</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app" v-cloak v-if="ready">
+    <app-topbar></app-topbar>
+
+    <transition name="xp-toast">
+      <div v-if="xpToast" class="xp-toast">{{ xpToast }}</div>
+    </transition>
+
+    <div class="layout">
+      <app-sidebar></app-sidebar>
+      <main class="content">
+        <div class="flow-page">
+
+          <!-- Выбор темы -->
+          <template v-if="view === 'topics'">
+            <h1 class="view-title">Тест</h1>
+            <p class="view-sub">Выберите тему и проверьте знания. За каждый впервые решённый вопрос — +10 XP.</p>
+
+            <p v-if="!topics.length" class="flow-empty">Вопросы пока не добавлены.</p>
+            <div v-else class="quiz-topics">
+              <button v-for="t in topics" :key="t.technology_id" class="quiz-topic"
+                      :style="{ '--cat-color': t.color || 'var(--accent)' }" @click="openTopic(t)">
+                <span class="quiz-topic-main">
+                  <span class="quiz-topic-title">{{ t.title }}</span>
+                  <span class="quiz-topic-path" v-if="t.category">{{ t.category }} · {{ t.subcategory }}</span>
+                </span>
+                <span class="quiz-topic-progress">{{ t.solved }} / {{ t.total }}</span>
+              </button>
+            </div>
+          </template>
+
+          <!-- Прохождение теста -->
+          <template v-else>
+            <button class="topbar-back quiz-back" @click="backToTopics" title="К темам">←</button>
+            <h1 class="view-title">{{ topic.title }}</h1>
+            <p class="view-sub">Выберите правильный вариант — сразу увидите объяснение.</p>
+
+            <p v-if="loading" class="flow-status">Загрузка…</p>
+            <p v-else-if="!questions.length" class="flow-empty">В этой теме пока нет вопросов.</p>
+
+            <ol v-else class="quiz-list">
+              <li v-for="(q, i) in questions" :key="q.id" class="quiz-q">
+                <div class="quiz-q-head">
+                  <span class="quiz-q-num">{{ i + 1 }}</span>
+                  <span class="quiz-q-text">{{ q.text }}</span>
+                  <span v-if="q.solved" class="quiz-q-solved">✓ решено</span>
+                </div>
+                <div class="quiz-options">
+                  <button v-for="opt in q.options" :key="opt.id"
+                          class="quiz-option" :class="optionClass(q, opt)"
+                          :disabled="q.done" @click="answer(q, opt.id)">
+                    <span class="quiz-option-text">{{ opt.text }}</span>
+                    <span v-if="q.feedback && explanationFor(q, opt)" class="quiz-option-exp">
+                      {{ explanationFor(q, opt) }}
+                    </span>
+                  </button>
+                </div>
+                <p v-if="q.feedback" class="quiz-result" :class="{ ok: q.feedback.correct }">
+                  {{ q.feedback.correct ? (q.feedback.awarded > 0 ? 'Верно! +' + q.feedback.awarded + ' XP' : 'Верно!') : 'Неверно, попробуйте ещё раз' }}
+                </p>
+              </li>
+            </ol>
+          </template>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/topbar.js"></script>
+  <script src="/static/js/sidebar.js"></script>
+  <script src="/static/js/quiz.js"></script>
+</body>
+</html>

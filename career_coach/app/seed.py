@@ -222,6 +222,93 @@ SEED_LINK_COURSES = [
 ]
 
 
+# Банк вопросов для тестов (QUIZ MODE), привязка к технологии по пути.
+# У каждого варианта: text, correct (по умолчанию False), explanation — объяснение,
+# почему вариант верный/неверный. Порядок вариантов на экране перемешивается.
+SEED_QUESTIONS = [
+    {
+        "category": "backend", "subcategory": "python", "technology": "python-basics",
+        "questions": [
+            {
+                "text": "Как правильно объявить переменную со строкой в Python?",
+                "options": [
+                    {"text": 'name = "Иван"', "correct": True,
+                     "explanation": "Верно: имя = значение, строка в кавычках."},
+                    {"text": 'String name = "Иван";', "explanation": "Это синтаксис Java, не Python."},
+                    {"text": 'var name = "Иван"', "explanation": "var — это JavaScript, в Python его нет."},
+                    {"text": 'let name = "Иван"', "explanation": "let — тоже JavaScript, не Python."},
+                ],
+            },
+            {
+                "text": "Какой тип данных вернёт выражение 3 / 2 в Python 3?",
+                "options": [
+                    {"text": "float (1.5)", "correct": True,
+                     "explanation": "В Python 3 оператор / всегда даёт float."},
+                    {"text": "int (1)", "explanation": "Целочисленное деление — это //, а не /."},
+                    {"text": "str ('1.5')", "explanation": "Деление возвращает число, а не строку."},
+                    {"text": "Ошибка", "explanation": "Деление чисел допустимо, ошибки не будет."},
+                ],
+            },
+            {
+                "text": "Как объявить функцию в Python?",
+                "options": [
+                    {"text": "def greet():", "correct": True,
+                     "explanation": "Функции объявляются ключевым словом def."},
+                    {"text": "function greet() {}", "explanation": "Это синтаксис JavaScript."},
+                    {"text": "func greet() {}", "explanation": "func — это Go/Swift, не Python."},
+                    {"text": "void greet() {}", "explanation": "Так объявляют методы в Java/C#."},
+                ],
+            },
+            {
+                "text": "Какая структура данных изменяемая (mutable)?",
+                "options": [
+                    {"text": "list", "correct": True,
+                     "explanation": "Списки можно изменять после создания."},
+                    {"text": "tuple", "explanation": "Кортежи неизменяемые."},
+                    {"text": "str", "explanation": "Строки в Python неизменяемые."},
+                    {"text": "frozenset", "explanation": "frozenset — неизменяемое множество."},
+                ],
+            },
+        ],
+    },
+    {
+        "category": "frontend", "subcategory": "javascript", "technology": "js-core",
+        "questions": [
+            {
+                "text": "Какое ключевое слово создаёт блочную переменную в современном JS?",
+                "options": [
+                    {"text": "let", "correct": True,
+                     "explanation": "let (и const) создают переменную с блочной областью видимости."},
+                    {"text": "var", "explanation": "var имеет функциональную область видимости, не блочную."},
+                    {"text": "def", "explanation": "def — это Python."},
+                    {"text": "dim", "explanation": "dim — это Visual Basic."},
+                ],
+            },
+            {
+                "text": "Что вернёт typeof [] в JavaScript?",
+                "options": [
+                    {"text": '"object"', "correct": True,
+                     "explanation": "Массивы в JS — это объекты, typeof возвращает 'object'."},
+                    {"text": '"array"', "explanation": "Отдельного типа 'array' у typeof нет."},
+                    {"text": '"list"', "explanation": "Такого типа в JS не существует."},
+                    {"text": '"undefined"', "explanation": "Массив определён, это не undefined."},
+                ],
+            },
+            {
+                "text": "Как строго сравнить два значения без приведения типов?",
+                "options": [
+                    {"text": "===", "correct": True,
+                     "explanation": "=== сравнивает и значение, и тип, без приведения."},
+                    {"text": "==", "explanation": "== приводит типы перед сравнением."},
+                    {"text": "=", "explanation": "= — это присваивание, а не сравнение."},
+                    {"text": "equals()", "explanation": "У примитивов JS нет метода equals()."},
+                ],
+            },
+        ],
+    },
+]
+
+
 SEED_CATEGORIES = [
     {
         "slug": "backend", "title": "Backend", "icon": "🛠️", "color": "#5d3fd3",

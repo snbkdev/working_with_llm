@@ -42,11 +42,11 @@ createApp({
       draft: "",
       // короткое всплывающее уведомление о начислении XP
       xpToast: "",
-      // dashboard featured lessons ('action' → какое действие начисляет XP)
+      // dashboard featured lessons ('href' → переход, 'action' → начисление XP)
       featured: [
-        { command: "/learn", ico: "📖", name: "Режим обучения", desc: "Разбор темы шаг за шагом", action: null },
-        { command: "/quiz", ico: "❓", name: "Квиз", desc: "Проверка знаний, +10 XP за ответ", action: "quiz" },
-        { command: "/challenge", ico: "⚔️", name: "Код-челлендж", desc: "Задача на код, +100 XP за решение", action: "challenge" },
+        { command: "/learn", ico: "📖", name: "Режим обучения", desc: "Разбор темы шаг за шагом", href: null, action: null },
+        { command: "/quiz", ico: "❓", name: "Квиз", desc: "Проверка знаний, +10 XP за верный ответ", href: "/quiz", action: null },
+        { command: "/challenge", ico: "⚔️", name: "Код-челлендж", desc: "Задача на код, +100 XP за решение", href: null, action: "challenge" },
       ],
     };
   },
@@ -128,6 +128,13 @@ createApp({
     go(view) {
       this.view = view;
       if (view === "chat") this.scrollChat();
+    },
+    openFeatured(item) {
+      if (item.href) {
+        window.location.href = item.href;
+      } else if (item.action) {
+        this.award(item.action);
+      }
     },
     async award(action) {
       // Начисление XP за действие. Суммы считает сервер (config.XP_REWARDS);

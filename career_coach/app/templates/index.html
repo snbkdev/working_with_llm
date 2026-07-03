@@ -96,7 +96,7 @@
           <h2 class="section-title">Продолжить обучение</h2>
           <div class="lesson-list">
             <a v-for="lesson in featured" :key="lesson.command" class="lesson"
-               href="#" @click.prevent="lesson.action && award(lesson.action)">
+               href="#" @click.prevent="openFeatured(lesson)">
               <span class="lesson-ico">{{ lesson.ico }}</span>
               <span class="lesson-body">
                 <span class="lesson-name">{{ lesson.name }}</span>

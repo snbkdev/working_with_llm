@@ -19,6 +19,7 @@ from .admin import router as admin_router
 from .auth import router as auth_router
 from .catalog import router as catalog_router
 from .mentor import router as mentor_router
+from .quiz import router as quiz_router
 from .config import APP_NAME, GOAL, SLASH_COMMANDS, get_system_prompt
 from .db import init_db
 
@@ -41,6 +42,7 @@ app.include_router(auth_router)
 app.include_router(catalog_router)
 app.include_router(admin_router)
 app.include_router(mentor_router)
+app.include_router(quiz_router)
 
 
 class ChatRequest(BaseModel):
@@ -85,6 +87,12 @@ async def admin_page() -> FileResponse:
 async def mentor_page() -> FileResponse:
     """Serve the mentor 'add course' page (mentor/admin access checked client-side)."""
     return FileResponse(TEMPLATES / "mentor.html")
+
+
+@app.get("/quiz")
+async def quiz_page() -> FileResponse:
+    """Serve the quiz page (auth checked client-side)."""
+    return FileResponse(TEMPLATES / "quiz.html")
 
 
 @app.get("/goal")
