@@ -20,6 +20,9 @@ class Tank:
         self.level = 0          # апгрейд от звезды (только у игрока): 0..PLAYER_MAX_LEVEL
         self.size = c.TANK_SIZE  # габарит; у игрока растёт со звёздами (см. set_level)
         self.body_color = None   # цвет корпуса; None → по умолчанию (игрок/враг)
+        self.design = "player"   # силуэт башни/ствола: player/basic/fast/power/armor
+        self.glide_dir = None    # инерция по льду: направление скольжения
+        self.glide_until = 0     # до какого момента (ticks) длится скольжение
         self.alive = True
 
     @property
@@ -132,14 +135,44 @@ class Tank:
         # Корпус
         pygame.draw.rect(screen, body, hull, border_radius=3)
 
-        # Башня
-        cx, cy = r.center
-        pygame.draw.circle(screen, out, (cx, cy), 7)
-        core = c.ENEMY_CORE if not self.is_player else body
-        pygame.draw.circle(screen, core, (cx, cy), 5)
+        # Башня и ствол(ы) — свой силуэт для каждого типа танка
+        self._draw_top(screen, r, hull, body, out)
 
-        # Ствол (выходит за корпус — видно направление)
-        bx = cx + self.dir[0] * (r.width // 2 + 3)
-        by = cy + self.dir[1] * (r.height // 2 + 3)
-        pygame.draw.line(screen, out, (cx, cy), (bx, by), 6)
-        pygame.draw.line(screen, body, (cx, cy), (bx, by), 4)
+    def _barrel(self, screen, cx, cy, k, out, body, length, w=4):
+        """Ствол со смещением k перпендикулярно направлению (для двух стволов)."""
+        dx, dy = self.dir
+        px, py = -dy, dx                       # перпендикуляр к направлению
+        sx, sy = cx + px * k, cy + py * k
+        ex, ey = sx + dx * length, sy + dy * length
+        pygame.draw.line(screen, out, (sx, sy), (ex, ey), w + 2)
+        pygame.draw.line(screen, body, (sx, sy), (ex, ey), w)
+
+    def _draw_top(self, screen, r, hull, body, out):
+        cx, cy = r.center
+        core = body if self.is_player else c.ENEMY_CORE
+        half = r.width // 2
+
+        # Ствол(ы) — рисуем до башни, чтобы ступица прикрыла их основания
+        if self.design == "power":
+            self._barrel(screen, cx, cy, 3, out, body, half + 3, w=3)
+            self._barrel(screen, cx, cy, -3, out, body, half + 3, w=3)
+        elif self.design == "armor":
+            self._barrel(screen, cx, cy, 0, out, body, half + 2, w=6)
+        elif self.design == "fast":
+            self._barrel(screen, cx, cy, 0, out, body, half + 5, w=3)
+        else:                                  # player / basic
+            self._barrel(screen, cx, cy, 0, out, body, half + 3, w=4)
+
+        # Башня
+        if self.design == "armor":
+            pygame.draw.circle(screen, out, (cx, cy), 8)
+            pygame.draw.rect(screen, core, (cx - 4, cy - 4, 8, 8))   # квадратный люк
+            for bx, by in ((hull.x + 4, hull.y + 4), (hull.right - 4, hull.y + 4),
+                           (hull.x + 4, hull.bottom - 4), (hull.right - 4, hull.bottom - 4)):
+                pygame.draw.circle(screen, out, (bx, by), 2)          # заклёпки
+        elif self.design == "fast":
+            pygame.draw.circle(screen, out, (cx, cy), 5)
+            pygame.draw.circle(screen, core, (cx, cy), 3)
+        else:                                  # player / basic / power
+            pygame.draw.circle(screen, out, (cx, cy), 7)
+            pygame.draw.circle(screen, core, (cx, cy), 5)

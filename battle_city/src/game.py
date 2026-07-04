@@ -31,13 +31,14 @@ STATE_GAMEOVER = "gameover"
 
 MAIN_MENU_ITEMS = [
     ("Новая игра", "new_game", True),
-    ("Загрузка", "load", False),
+    ("Загрузка", "load", False),        # активируется, если есть сохранение
     ("Настройки", "settings", False),
     ("Выход", "quit", True),
 ]
 PAUSE_MENU_ITEMS = [
     ("Продолжить", "resume", True),
-    ("Сохранить/Загрузить", "saveload", False),
+    ("Сохранить игру", "save", True),
+    ("Загрузить игру", "load", False),  # активируется, если есть сохранение
     ("Управление", "controls", True),
     ("Выйти", "exit", True),
 ]
@@ -68,6 +69,9 @@ class Game:
         self.menu = Menu(MAIN_MENU_ITEMS, title="BATTLE CITY",
                          subtitle="Tank 1990 · pygame")
         self.pause_menu = Menu(PAUSE_MENU_ITEMS, title="ПАУЗА", overlay=True)
+        self.toast = ""               # короткое уведомление (сохранено/загружено)
+        self.toast_until = 0
+        self._sync_menu_saves()
 
     def reset(self):
         """Новая игра с первого уровня: сбрасываются очки и жизни."""
@@ -76,15 +80,18 @@ class Game:
         self.new_record = False
         self.load_level(0)
 
-    def load_level(self, index):
+    def load_level(self, index, carry_level=0):
         """Загружает уровень index и сбрасывает поле.
 
         Очки и жизни сохраняются между уровнями (их обнуляет только reset).
+        carry_level — апгрейд танка (звёзды), переносимый со следующего уровня.
         """
         self.level_index = index
         self.level = Level(levels.load_level(index))
         col, row = self.level.player_spawn
         self.player = Tank(col, row, c.UP, is_player=True)
+        if carry_level:
+            self.player.set_level(carry_level)      # звезда сохраняется между уровнями
         self.bullets = []
         self.explosions = []
         self.powerups = []
@@ -103,6 +110,10 @@ class Game:
         self.shake_dur = 1
         self.flash_until = 0
 
+        # Предупреждения базы
+        self.base_alert = False       # враг в опасной близости от базы
+        self.last_alarm = 0           # когда последний раз пикнула тревога
+
         # Враги: случайное число за уровень (10–15)
         self.enemies = []
         self.spawns_pending = []      # «порталы»: враг вот-вот появится (анимация)
@@ -120,12 +131,26 @@ class Game:
 
     def back_to_menu(self):
         self.sounds.engine_stop()
+        self._sync_menu_saves()
         self.state = STATE_MENU
 
     def pause(self):
         self.sounds.engine_stop()
+        self._sync_menu_saves()
         self.pause_menu.index = 0
         self.state = STATE_PAUSED
+
+    def _sync_menu_saves(self):
+        """Пункты «Загрузка/Загрузить игру» активны только при наличии сейва."""
+        has = storage.has_save()
+        self.menu.items[1] = (self.menu.items[1][0], "load", has)
+        self.pause_menu.items[2] = (self.pause_menu.items[2][0], "load", has)
+        if not self.menu.items[self.menu.index][2]:
+            self.menu.index = self.menu._first_active()
+
+    def _toast(self, text, ms=1500):
+        self.toast = text
+        self.toast_until = pygame.time.get_ticks() + ms
 
     def resume(self):
         self.state = STATE_PLAYING
@@ -141,7 +166,8 @@ class Game:
         for _ in range(40):
             col = random.randint(0, c.COLS - 1)
             row = random.randint(0, c.ROWS - 1)
-            if (col, row) in self.level.bricks or (col, row) in self.level.steels:
+            if ((col, row) in self.level.bricks or (col, row) in self.level.steels
+                    or (col, row) in self.level.water):
                 continue
             if (col, row) == self.level.base_cell:
                 continue
@@ -219,8 +245,75 @@ class Game:
             self.game_over("win")             # пройден последний уровень
 
     def next_level(self):
-        self.load_level(self.level_index + 1)
+        self.load_level(self.level_index + 1, carry_level=self.player.level)
         self.state = STATE_PLAYING
+
+    # --- Сохранение / загрузка партии ---
+    def serialize(self):
+        """Снапшот текущей партии для сохранения в JSON."""
+        now = pygame.time.get_ticks()
+        return {
+            "level_index": self.level_index,
+            "score": self.score,
+            "lives": self.lives,
+            "player_level": self.player.level,
+            "enemies_to_spawn": self.enemies_to_spawn,
+            "spawn_index": self.spawn_index,
+            "bricks": [list(cell) for cell in self.level.bricks],
+            "steels": [list(cell) for cell in self.level.steels],
+            "enemies": [{
+                "x": e.x, "y": e.y, "dir": list(e.dir), "kind": e.kind,
+                "hp": e.hp, "bonus": e.bonus, "reinforced": e.reinforced,
+            } for e in self.enemies],
+            "freeze_remaining": max(0, self.freeze_until - now) if self.freeze_until else 0,
+            "steel_remaining": max(0, self.steel_until - now) if self.steel_until else 0,
+        }
+
+    def apply_save(self, data):
+        """Восстанавливает партию из снапшота (см. serialize)."""
+        now = pygame.time.get_ticks()
+        self.load_level(int(data["level_index"]),
+                        carry_level=int(data.get("player_level", 0)))
+        self.score = int(data["score"])
+        self.lives = int(data["lives"])
+        self.enemies_to_spawn = int(data["enemies_to_spawn"])
+        self.spawn_index = int(data["spawn_index"])
+        self.level.bricks = {tuple(cell) for cell in data["bricks"]}
+        self.level.steels = {tuple(cell) for cell in data["steels"]}
+
+        self.enemies = []
+        for es in data.get("enemies", []):
+            e = Enemy(0, 0, bonus=es["bonus"], kind=es["kind"],
+                      reinforced=es["reinforced"])
+            e.x, e.y = float(es["x"]), float(es["y"])
+            e.dir = tuple(es["dir"])
+            e.hp = int(es["hp"])
+            if e.max_hp > 1:
+                e.body_color = e._armor_color()
+            self.enemies.append(e)
+
+        fr = int(data.get("freeze_remaining", 0))
+        self.freeze_until = now + fr if fr > 0 else None
+        sr = int(data.get("steel_remaining", 0))
+        self.steel_until = now + sr if sr > 0 else None
+
+    def _save_game(self):
+        if storage.save_game(self.serialize()):
+            self._toast("Игра сохранена")
+        else:
+            self._toast("Не удалось сохранить")
+
+    def _load_game(self):
+        data = storage.load_game()
+        if not data:
+            return False
+        try:
+            self.apply_save(data)
+        except (KeyError, ValueError, TypeError):
+            return False           # повреждённый сейв — молча игнорируем
+        self._toast("Игра загружена")
+        self.state = STATE_PLAYING
+        return True
 
     # --- Стрельба ---
     def player_bullets(self):
@@ -359,12 +452,21 @@ class Game:
         direction = self.read_direction(keys)
         solids = self.level.solid_rects()
 
-        # Игрок (враги — препятствия)
+        # Игрок (враги — препятствия). На льду — скольжение по инерции.
         enemy_rects = [e.rect for e in self.enemies]
+        on_ice = self.level.is_ice(self.player.rect.center)
         moved = False
         if direction is not None:
             self.player.face(direction)
             moved = self.player.try_move(solids, enemy_rects)
+            if moved and on_ice:                     # запоминаем инерцию
+                self.player.glide_dir = direction
+                self.player.glide_until = now + c.ICE_SLIDE_MS
+        elif on_ice and now < self.player.glide_until and self.player.glide_dir:
+            self.player.dir = self.player.glide_dir  # скользим по льду после отпускания
+            moved = self.player.try_move(solids, enemy_rects)
+            if not moved:
+                self.player.glide_until = 0          # упёрлись — стоп
 
         # Звук двигателя — пока игрок реально едет
         if moved:
@@ -442,6 +544,9 @@ class Game:
         self.explosions = [ex for ex in self.explosions if ex.alive]
         self.powerups = [p for p in self.powerups if p.alive]
 
+        # Тревога «враг у базы»: мигание + периодический сигнал
+        self._update_base_alert(now)
+
         # Уровень зачищен: все враги уничтожены, порталов нет и больше не появятся
         if self.enemies_to_spawn == 0 and not self.enemies and not self.spawns_pending:
             self.level_cleared()
@@ -473,6 +578,21 @@ class Game:
                     self.player_hit()
                 else:
                     self.sounds.play_hit()      # щит поглотил пулю — лёгкий «тик»
+
+    def _update_base_alert(self, now):
+        """Тревога, если враг в опасной близости от базы: мигание + сигнал."""
+        if not self.level.base_alive:
+            self.base_alert = False
+            return
+        bx, by = self.level.base_rect().center
+        self.base_alert = any(
+            abs(e.rect.centerx - bx) <= c.BASE_ALERT_RADIUS
+            and abs(e.rect.centery - by) <= c.BASE_ALERT_RADIUS
+            for e in self.enemies
+        )
+        if self.base_alert and now - self.last_alarm >= c.BASE_ALERT_SOUND_MS:
+            self.sounds.play_alarm()
+            self.last_alarm = now
 
     def _bullets_cancel(self):
         pb = [b for b in self.bullets if b.alive and b.owner == "player"]
@@ -528,6 +648,7 @@ class Game:
         self.draw_grid()
         self.level.draw(self.screen)
         now = pygame.time.get_ticks()
+        self._draw_base_warnings(now)                # тревога/мигание брони базы
         for p in self.powerups:
             p.draw(self.screen)
         self._draw_spawns(now)                       # «порталы» появления врагов
@@ -550,13 +671,44 @@ class Game:
             b.draw(self.screen)
         for ex in self.explosions:
             ex.draw(self.screen)
+        self.level.draw_forest(self.screen)         # листва поверх танков — засады
         pygame.draw.rect(self.screen, c.FIELD_BORDER, (0, 0, c.FIELD_W, c.FIELD_H), 2)
         self.draw_hud()
+        self._draw_toast(now)
+
+    def _draw_toast(self, now):
+        """Короткое уведомление вверху поля (сохранено/загружено)."""
+        if now >= self.toast_until or not self.toast:
+            return
+        surf = self.font.render(self.toast, True, c.WHITE)
+        pad = 10
+        bw, bh = surf.get_width() + pad * 2, surf.get_height() + pad
+        bx = (c.FIELD_W - bw) // 2
+        box = pygame.Surface((bw, bh), pygame.SRCALPHA)
+        box.fill((20, 24, 30, 220))
+        self.screen.blit(box, (bx, 16))
+        pygame.draw.rect(self.screen, c.PLAYER_COLOR, (bx, 16, bw, bh), 1)
+        self.screen.blit(surf, (bx + pad, 16 + pad // 2))
 
     def _draw_shield(self, rect, now):
         """Пульсирующее кольцо-щит вокруг танка (неуязвимость)."""
         radius = rect.width // 2 + 4 + (now // 80) % 3
         pygame.draw.circle(self.screen, c.SHIELD_COLOR, rect.center, radius, 2)
+
+    def _draw_base_warnings(self, now):
+        """Пульсирующая рамка тревоги у базы и мигание брони на исходе «стали»."""
+        if not self.level.base_alive:
+            return
+        blink = (now // 250) % 2 == 0
+        if self.base_alert and blink:               # враг близко — красная рамка
+            r = self.level.base_rect().inflate(6, 6)
+            pygame.draw.rect(self.screen, c.BASE_ALERT_COLOR, r, 3, border_radius=4)
+        if self.steel_until is not None:            # «сталь» вот-вот кончится — мигает броня
+            left = self.steel_until - now
+            if 0 < left <= c.STEEL_WARN_MS and blink:
+                for col, row in self.level.base_wall:
+                    rr = pygame.Rect(col * c.TILE, row * c.TILE, c.TILE, c.TILE)
+                    pygame.draw.rect(self.screen, c.BASE_WARN_COLOR, rr, 2)
 
     def _draw_spawns(self, now):
         """Мигающая звезда-портал на месте скорого появления врага."""
@@ -796,9 +948,11 @@ class Game:
         action = self.menu.handle_event(e)
         if action == "new_game":
             self.start_new_game()
+        elif action == "load":
+            self._load_game()
         elif action == "quit":
             self.quit()
-        # «load» и «settings» пока без действия
+        # «settings» пока без действия
 
     def handle_pause_event(self, e):
         # P или Esc — быстро снять паузу
@@ -808,11 +962,17 @@ class Game:
         action = self.pause_menu.handle_event(e)
         if action == "resume":
             self.resume()
+        elif action == "save":
+            self._save_game()
+            self._sync_menu_saves()      # активируем «Загрузить игру»
+            self.resume()
+        elif action == "load":
+            if self._load_game():        # переводит в STATE_PLAYING
+                pass
         elif action == "controls":
             self.state = STATE_CONTROLS
         elif action == "exit":
             self.back_to_menu()
-        # «saveload» пока без действия
 
     def handle_controls_event(self, e):
         if e.type == pygame.KEYDOWN and e.key in (

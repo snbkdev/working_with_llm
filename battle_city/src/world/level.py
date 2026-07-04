@@ -4,6 +4,9 @@
     '.' — пусто
     'B' — кирпич (разрушается пулями)
     'S' — сталь (пули не пробивают)
+    'W' — вода (танк не проедет, пули летят над ней)
+    'F' — лес (все проходят, но танк скрыт под листвой)
+    'I' — лёд (скольжение при движении)
     'A' — база/орёл (защищаем; разрушение = поражение)
     'P' — точка появления игрока
     'E' — точка появления врага
@@ -29,6 +32,9 @@ class Level:
             rows = levels.load_level(0)
         self.bricks = set()       # клетки-кирпичи {(col, row)}
         self.steels = set()       # клетки-сталь
+        self.water = set()        # клетки-вода (блокируют танки, не пули)
+        self.forest = set()       # клетки-лес (рисуются поверх танков)
+        self.ice = set()          # клетки-лёд (скольжение)
         self.enemy_spawns = []     # [(col, row), ...]
         self.player_spawn = (6, 12)
         self.base_cell = (6, 12)
@@ -40,6 +46,12 @@ class Level:
                     self.bricks.add((col, row))
                 elif ch == "S":
                     self.steels.add((col, row))
+                elif ch == "W":
+                    self.water.add((col, row))
+                elif ch == "F":
+                    self.forest.add((col, row))
+                elif ch == "I":
+                    self.ice.add((col, row))
                 elif ch == "E":
                     self.enemy_spawns.append((col, row))
                 elif ch == "P":
@@ -58,9 +70,10 @@ class Level:
 
     # --- Препятствия ---
     def solid_rects(self):
-        """Прямоугольники, сквозь которые нельзя проехать."""
+        """Прямоугольники, сквозь которые нельзя проехать (стены, вода, база)."""
         rects = [tile_rect(col, row) for col, row in self.bricks]
         rects += [tile_rect(col, row) for col, row in self.steels]
+        rects += [tile_rect(col, row) for col, row in self.water]
         if self.base_alive:
             rects.append(self.base_rect())
         return rects
@@ -70,6 +83,10 @@ class Level:
 
     def cell_at(self, px, py):
         return (px // c.TILE, py // c.TILE)
+
+    def is_ice(self, pos):
+        """Стоит ли танк (по его центру) на клетке льда."""
+        return self.cell_at(pos[0], pos[1]) in self.ice
 
     def set_base_walls(self, material):
         """Материал защитной рамки базы: 'steel' (лопата) или 'brick' (возврат).
@@ -108,12 +125,52 @@ class Level:
 
     # --- Отрисовка ---
     def draw(self, screen):
+        """Земля и препятствия (под танками). Лес рисуется отдельно — draw_forest."""
+        now = pygame.time.get_ticks()
+        for col, row in self.ice:
+            self._draw_ice(screen, col, row)
+        for col, row in self.water:
+            self._draw_water(screen, col, row, now)
         for col, row in self.bricks:
             self._draw_brick(screen, col, row)
         for col, row in self.steels:
             self._draw_steel(screen, col, row)
         if self.base_alive:
             self._draw_base(screen)
+
+    def draw_forest(self, screen):
+        """Листва — поверх танков и пуль (скрывает то, что под ней)."""
+        for col, row in self.forest:
+            self._draw_forest(screen, col, row)
+
+    def _draw_water(self, screen, col, row, now):
+        r = tile_rect(col, row)
+        pygame.draw.rect(screen, c.WATER_COLOR, r)
+        # Две бегущие волны — сдвиг фазы во времени
+        for i in range(2):
+            y = r.y + 10 + i * 16
+            phase = (now // 220 + i) % 2
+            x0 = r.x + (6 if phase else 2)
+            pygame.draw.line(screen, c.WATER_DARK, (r.x + 2, y), (r.right - 2, y), 2)
+            pygame.draw.line(screen, c.WATER_FOAM, (x0, y - 3),
+                             (min(x0 + 12, r.right - 3), y - 3), 2)
+
+    def _draw_ice(self, screen, col, row):
+        r = tile_rect(col, row)
+        pygame.draw.rect(screen, c.ICE_COLOR, r)
+        pygame.draw.rect(screen, c.ICE_EDGE, r, 1)
+        # Блики-трещинки
+        pygame.draw.line(screen, c.ICE_SHINE, (r.x + 6, r.y + 8), (r.x + 16, r.y + 5), 2)
+        pygame.draw.line(screen, c.ICE_SHINE,
+                         (r.right - 8, r.bottom - 7), (r.right - 20, r.bottom - 10), 2)
+
+    def _draw_forest(self, screen, col, row):
+        r = tile_rect(col, row)
+        pygame.draw.rect(screen, c.FOREST_DARK, r)
+        # Кусты — кружки-кроны в шахматном порядке
+        for i, (dx, dy) in enumerate(((10, 10), (28, 12), (18, 26), (32, 30), (6, 30))):
+            col2 = c.FOREST_LIGHT if i % 2 else c.FOREST_COLOR
+            pygame.draw.circle(screen, col2, (r.x + dx, r.y + dy), 7)
 
     def _draw_brick(self, screen, col, row):
         r = tile_rect(col, row)

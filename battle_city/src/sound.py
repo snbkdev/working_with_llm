@@ -61,7 +61,7 @@ class Sounds:
     def __init__(self, enabled=True):
         self.enabled = enabled
         self.shoot = self.hit = self.engine = self.pickup = None
-        self.explosion = None
+        self.explosion = self.alarm = None
         self.engine_channel = None
         if not enabled:
             return
@@ -73,6 +73,8 @@ class Sounds:
             self.pickup = _tone(500, 1150, 0.20, volume=0.32)  # восходящий «динь»
             # Взрыв танка/базы: низкий раскатистый «бум» с сильным шумом
             self.explosion = _tone(320, 45, 0.34, volume=0.5, fade=0.02, noise=0.75)
+            # Тревога «враг у базы»: короткий нисходящий сигнал
+            self.alarm = _tone(1046, 740, 0.16, volume=0.28)
             self.engine = _engine_loop()
         except pygame.error:
             self.enabled = False
@@ -92,6 +94,10 @@ class Sounds:
     def play_explosion(self):
         if self.enabled and self.explosion:
             self.explosion.play()
+
+    def play_alarm(self):
+        if self.enabled and self.alarm:
+            self.alarm.play()
 
     # --- Двигатель (зацикленный, пока танк едет) ---
     def engine_start(self):

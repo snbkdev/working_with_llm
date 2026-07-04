@@ -23,6 +23,7 @@ class Enemy(Tank):
         self.kind = kind
         self.reinforced = reinforced
 
+        self.design = kind       # силуэт башни/ствола по типу (см. Tank._draw_top)
         spec = c.ENEMY_TYPES.get(kind, c.ENEMY_TYPES["basic"])
         self.speed = spec["speed"]
         self.hp = spec["hp"]

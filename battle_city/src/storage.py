@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 SAVE_PATH = Path(__file__).resolve().parent.parent / "highscore.json"
+GAME_SAVE_PATH = Path(__file__).resolve().parent.parent / "savegame.json"
 
 
 def load_highscore():
@@ -28,3 +29,26 @@ def save_highscore(value):
         return True
     except (OSError, ValueError, TypeError):
         return False
+
+
+# --- Сохранение партии ---
+def has_save():
+    """Есть ли сохранённая партия."""
+    return GAME_SAVE_PATH.exists()
+
+
+def save_game(data):
+    """Сохраняет снапшот партии (dict) в JSON. True при успехе."""
+    try:
+        GAME_SAVE_PATH.write_text(json.dumps(data), encoding="utf-8")
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def load_game():
+    """Возвращает снапшот партии (dict) или None, если его нет/повреждён."""
+    try:
+        return json.loads(GAME_SAVE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None

@@ -11,7 +11,9 @@ from pathlib import Path
 from .. import config as c
 
 LEVELS_DIR = Path(__file__).resolve().parents[2] / "levels"
-VALID_CHARS = set(".BSAPE")
+# . пусто · B кирпич · S сталь · A база · P игрок · E спавн врага
+# W вода · F лес · I лёд
+VALID_CHARS = set(".BSAPEWFI")
 
 _files_cache = None     # карты не меняются во время игры — глобим один раз
 
