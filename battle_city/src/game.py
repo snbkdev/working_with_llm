@@ -85,7 +85,8 @@ class Game:
         self.bullets = []
         self.explosions = []
         self.powerups = []
-        self.shovel_until = None      # пока активна укреплённая база (лопата)
+        self.steel_until = None       # пока активна стальная броня базы («сталь»)
+        self.freeze_until = None      # пока враги заморожены («часы»)
         self.last_shot = 0
         self.result = None
         # Кратковременная неуязвимость на старте
@@ -145,10 +146,13 @@ class Game:
     def apply_powerup(self, kind):
         now = pygame.time.get_ticks()
         if kind == "star":
-            self.player.level = min(self.player.level + 1, c.PLAYER_MAX_LEVEL)
-        elif kind == "helmet":
-            self.player_invuln_until = now + c.HELMET_DURATION
-        elif kind == "grenade":
+            # Звезда: апгрейд танка — крупнее корпус + огневая мощь (см. shoot)
+            self.player.set_level(min(self.player.level + 1, c.PLAYER_MAX_LEVEL))
+        elif kind == "clock":
+            # Часы: заморозить всех врагов на время
+            self.freeze_until = now + c.FREEZE_DURATION
+        elif kind == "bomb":
+            # Бомбочка: мгновенно взорвать всех врагов на поле
             killed = False
             for e in self.enemies:
                 if e.alive:
@@ -158,9 +162,13 @@ class Game:
                     killed = True
             if killed:
                 self.sounds.play_explosion()
-        elif kind == "shovel":
+        elif kind == "steel":
+            # Сталь: одеть базу в стальную броню на время
             self.level.set_base_walls("steel")
-            self.shovel_until = now + c.SHOVEL_DURATION
+            self.steel_until = now + c.STEEL_DURATION
+        elif kind == "life":
+            # Орёл: +1 жизнь (с потолком)
+            self.lives = min(self.lives + 1, c.PLAYER_MAX_LIVES)
 
     def respawn_player(self):
         col, row = self.level.player_spawn
@@ -302,18 +310,24 @@ class Game:
                 self.score += c.POWERUP_SCORE
                 self.sounds.play_pickup()
 
-        # Истечение укреплённой базы (лопата)
-        if self.shovel_until is not None and now >= self.shovel_until:
+        # Истечение стальной брони базы («сталь»)
+        if self.steel_until is not None and now >= self.steel_until:
             self.level.set_base_walls("brick")
-            self.shovel_until = None
+            self.steel_until = None
 
-        # Враги (ИИ)
-        for e in self.enemies:
-            blockers = [o.rect for o in self.enemies if o is not e]
-            blockers.append(self.player.rect)
-            bullet = e.update_ai(solids, blockers)
-            if bullet is not None:
-                self.bullets.append(bullet)
+        # Истечение заморозки врагов («часы»)
+        if self.freeze_until is not None and now >= self.freeze_until:
+            self.freeze_until = None
+
+        # Враги (ИИ). Пока действуют «часы» — стоят на месте и не стреляют.
+        frozen = self.freeze_until is not None and now < self.freeze_until
+        if not frozen:
+            for e in self.enemies:
+                blockers = [o.rect for o in self.enemies if o is not e]
+                blockers.append(self.player.rect)
+                bullet = e.update_ai(solids, blockers)
+                if bullet is not None:
+                    self.bullets.append(bullet)
 
         # Пули
         for b in self.bullets:
@@ -321,18 +335,23 @@ class Game:
             if not (0 <= b.x <= c.FIELD_W and 0 <= b.y <= c.FIELD_H):
                 b.alive = False
                 continue
-            # Попадание в стену/базу (прокачанная пуля игрока пробивает сталь)
-            res = self.level.hit(b.rect, pierce_steel=(b.owner == "player" and b.power))
+            # Попадание в стену/базу. Пуля танка 3-го уровня пробивает всё:
+            # разрушает и кирпич, и сталь и летит дальше, не гаснет.
+            piercing = b.owner == "player" and b.power
+            res = self.level.hit(b.rect, pierce_steel=piercing)
             if res:
-                b.alive = False
                 if res == "base":
+                    b.alive = False
                     self.spawn_explosion(b.rect.center, big=True)
                     self.sounds.play_explosion()
                     self.game_over("lose")
-                else:
-                    self.spawn_explosion(b.rect.center, big=False)
-                    self.sounds.play_hit()
-                continue
+                    continue
+                self.spawn_explosion(b.rect.center, big=False)
+                self.sounds.play_hit()
+                if not piercing:
+                    b.alive = False
+                    continue
+                # прокачанная пуля прошивает стену насквозь — не убиваем её
             # Попадание в танк
             self._bullet_vs_tanks(b, now)
 
@@ -419,8 +438,14 @@ class Game:
         self.player.draw(self.screen)
         if now < self.player_invuln_until:          # щит: респаун или каска
             self._draw_shield(self.player.rect, now)
+        frozen = self.freeze_until is not None and now < self.freeze_until
         for e in self.enemies:
             e.draw(self.screen)
+            if frozen:                               # заморожены «часами» — ледяной налёт
+                ice = pygame.Surface((e.rect.width, e.rect.height), pygame.SRCALPHA)
+                ice.fill((*c.FREEZE_TINT, 90))
+                self.screen.blit(ice, e.rect.topleft)
+                pygame.draw.rect(self.screen, c.FREEZE_TINT, e.rect, 1, border_radius=5)
             if e.bonus and (now // 250) % 2 == 0:    # носитель бонуса мигает рамкой
                 pygame.draw.rect(self.screen, c.STAR_COLOR, e.rect, 2, border_radius=5)
         for b in self.bullets:
@@ -484,7 +509,7 @@ class Game:
         self.screen.blit(lbl, (x + 14, 88))
         num = self.font.render(str(self.lives), True, (60, 90, 40))
         self.screen.blit(num, (x + c.HUD_W - 32, 82))
-        for i in range(self.lives):
+        for i in range(min(self.lives, 5)):          # иконок — до 5, число рядом точнее
             self._mini_tank(x + 16 + i * 24, 110, 16, c.PLAYER_COLOR, c.PLAYER_TRACK)
 
         pygame.draw.line(self.screen, (70, 70, 70),

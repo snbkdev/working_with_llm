@@ -271,6 +271,32 @@ class QuizAttempt(Base):
     )
 
 
+class Note(Base):
+    """A personal study note, optionally attached to a course («Заметки по курсам»).
+
+    course_id is nullable (general notes are allowed) and uses SET NULL on course
+    deletion so a note survives if its course is removed.
+    """
+
+    __tablename__ = "notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    course_id: Mapped[int | None] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    body: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class LessonProgress(Base):
     """One row per lesson a user has marked completed («урок пройден»).
 

@@ -1,8 +1,8 @@
 """Бонус (power-up): лежит на клетке поля, мигает, подбирается наездом.
 
-Виды: 'star' (апгрейд танка), 'helmet' (щит-неуязвимость),
-'grenade' (уничтожить всех врагов), 'shovel' (укрепить базу).
-Иконки рисуются процедурно, как и вся графика игры.
+Виды: 'star' (апгрейд танка), 'clock' (заморозить врагов),
+'bomb' (взорвать всех врагов), 'steel' (стальная броня базы),
+'life' (+1 жизнь). Иконки рисуются процедурно, как и вся графика игры.
 """
 
 import math
@@ -58,30 +58,47 @@ class PowerUp:
         pts = _star_points(r.centerx, r.centery, r.width * 0.36, r.width * 0.15)
         pygame.draw.polygon(screen, c.STAR_COLOR, pts)
 
-    def _icon_helmet(self, screen, r):
+    def _icon_clock(self, screen, r):
+        # «Часы»: циферблат со стрелками — заморозка врагов
         cx, cy = r.center
-        dome = pygame.Rect(0, 0, r.width * 0.6, r.width * 0.6)
-        dome.center = (cx, cy + 1)
-        pygame.draw.arc(screen, c.HELMET_COLOR, dome, 0, math.pi, 4)
-        pygame.draw.line(screen, c.HELMET_COLOR,
-                         (dome.left, cy + 1), (dome.right, cy + 1), 4)
+        rad = int(r.width * 0.32)
+        pygame.draw.circle(screen, c.CLOCK_COLOR, (cx, cy), rad)
+        pygame.draw.circle(screen, c.POWERUP_BG, (cx, cy), rad, 2)
+        # Стрелки (на «10:10»)
+        pygame.draw.line(screen, c.POWERUP_BG, (cx, cy), (cx, cy - rad + 2), 2)
+        pygame.draw.line(screen, c.POWERUP_BG, (cx, cy), (cx + rad - 3, cy - 2), 2)
 
-    def _icon_grenade(self, screen, r):
+    def _icon_bomb(self, screen, r):
+        # «Бомбочка»: круглый корпус с запалом — взрыв всех врагов
         cx, cy = r.center
         body = int(r.width * 0.26)
-        pygame.draw.circle(screen, c.GRENADE_COLOR, (cx, cy + 2), body)
+        pygame.draw.circle(screen, c.BOMB_COLOR, (cx, cy + 2), body)
         pygame.draw.circle(screen, c.POWERUP_FRAME, (cx, cy + 2), body, 1)
-        # Колпачок и запал
-        pygame.draw.rect(screen, c.GRENADE_COLOR,
-                         (cx - 3, cy - body - 1, 6, 4))
+        # Блик и фитиль с искрой
+        pygame.draw.circle(screen, c.POWERUP_FRAME, (cx - 2, cy), 1)
+        pygame.draw.rect(screen, c.BOMB_COLOR, (cx - 3, cy - body - 1, 6, 4))
         pygame.draw.line(screen, c.STAR_COLOR,
                          (cx + 2, cy - body - 1), (cx + 6, cy - body - 5), 2)
 
-    def _icon_shovel(self, screen, r):
+    def _icon_steel(self, screen, r):
+        # «Сталь»: бронеплита с заклёпками — броня базы
         cx, cy = r.center
-        # Черенок
-        pygame.draw.line(screen, c.SHOVEL_COLOR, (cx, cy - 6), (cx, cy + 2), 3)
-        # Штык
-        pygame.draw.polygon(screen, c.SHOVEL_COLOR, [
-            (cx - 5, cy + 1), (cx + 5, cy + 1),
-            (cx + 3, cy + 7), (cx - 3, cy + 7)])
+        plate = pygame.Rect(0, 0, int(r.width * 0.56), int(r.width * 0.56))
+        plate.center = (cx, cy)
+        pygame.draw.rect(screen, c.STEEL_ITEM_COLOR, plate, border_radius=2)
+        pygame.draw.rect(screen, c.POWERUP_BG, plate, 2, border_radius=2)
+        for bx, by in ((plate.x + 3, plate.y + 3), (plate.right - 3, plate.y + 3),
+                       (plate.x + 3, plate.bottom - 3), (plate.right - 3, plate.bottom - 3)):
+            pygame.draw.circle(screen, c.POWERUP_BG, (bx, by), 1)
+
+    def _icon_life(self, screen, r):
+        # «Орёл»: маленький танк — +1 жизнь
+        cx, cy = r.center
+        body = pygame.Rect(0, 0, int(r.width * 0.5), int(r.width * 0.42))
+        body.center = (cx, cy + 1)
+        pygame.draw.rect(screen, c.LIFE_COLOR, body, border_radius=2)
+        # Гусеницы по бокам
+        pygame.draw.rect(screen, c.POWERUP_BG, (body.x - 2, body.y, 3, body.height))
+        pygame.draw.rect(screen, c.POWERUP_BG, (body.right - 1, body.y, 3, body.height))
+        # Ствол вверх
+        pygame.draw.line(screen, c.LIFE_COLOR, (cx, body.top), (cx, body.top - 5), 3)

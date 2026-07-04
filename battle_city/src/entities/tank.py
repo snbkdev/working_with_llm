@@ -18,17 +18,34 @@ class Tank:
         self.is_player = is_player
         self.speed = c.PLAYER_SPEED if is_player else c.ENEMY_SPEED
         self.level = 0          # апгрейд от звезды (только у игрока): 0..PLAYER_MAX_LEVEL
+        self.size = c.TANK_SIZE  # габарит; у игрока растёт со звёздами (см. set_level)
         self.alive = True
 
     @property
     def rect(self):
-        return pygame.Rect(int(self.x), int(self.y), c.TANK_SIZE, c.TANK_SIZE)
+        return pygame.Rect(int(self.x), int(self.y), self.size, self.size)
+
+    @property
+    def _offset(self):
+        """Отступ танка внутри клетки при текущем размере (центрирование в полосе)."""
+        return (c.TILE - self.size) // 2
+
+    def set_level(self, level):
+        """Задать уровень апгрейда и подросший габарит, сохранив центр танка."""
+        self.level = level
+        new_size = c.PLAYER_TANK_SIZES[min(level, len(c.PLAYER_TANK_SIZES) - 1)]
+        cx, cy = self.rect.center
+        self.size = new_size
+        self.x = cx - new_size / 2
+        self.y = cy - new_size / 2
+        # Не выпускаем крупный танк за пределы поля
+        self.x = max(0, min(self.x, c.FIELD_W - new_size))
+        self.y = max(0, min(self.y, c.FIELD_H - new_size))
 
     # --- Движение ---
-    @staticmethod
-    def _snap(value):
-        """Привязка координаты к ближайшей полосе сетки."""
-        return round((value - c.TANK_OFFSET) / c.TILE) * c.TILE + c.TANK_OFFSET
+    def _snap(self, value):
+        """Привязка координаты к ближайшей полосе сетки (с учётом габарита)."""
+        return round((value - self._offset) / c.TILE) * c.TILE + self._offset
 
     def face(self, direction):
         self.dir = direction
@@ -48,7 +65,7 @@ class Tank:
             nx = self._snap(self.x)
         nx += self.dir[0] * self.speed
         ny += self.dir[1] * self.speed
-        new = pygame.Rect(round(nx), round(ny), c.TANK_SIZE, c.TANK_SIZE)
+        new = pygame.Rect(round(nx), round(ny), self.size, self.size)
 
         # Границы поля
         if (new.left < 0 or new.top < 0
