@@ -14,6 +14,7 @@ import pygame
 from . import config as c
 from .entities.enemy import Enemy
 from .entities.explosion import Explosion
+from .entities import particle
 from .entities.powerup import PowerUp
 from .entities.tank import Tank
 from . import storage
@@ -26,13 +27,18 @@ STATE_MENU = "menu"
 STATE_PLAYING = "playing"
 STATE_PAUSED = "paused"
 STATE_CONTROLS = "controls"
+STATE_SETTINGS = "settings"
+STATE_LEVELSTART = "levelstart"
+STATE_NAME_ENTRY = "name_entry"
+STATE_SCORES = "scores"
 STATE_LEVELCLEAR = "levelclear"
 STATE_GAMEOVER = "gameover"
 
 MAIN_MENU_ITEMS = [
     ("Новая игра", "new_game", True),
     ("Загрузка", "load", False),        # активируется, если есть сохранение
-    ("Настройки", "settings", False),
+    ("Рекорды", "scores", True),
+    ("Настройки", "settings", True),
     ("Выход", "quit", True),
 ]
 PAUSE_MENU_ITEMS = [
@@ -52,6 +58,17 @@ class Game:
         # со смещением — так реализуется тряска экрана без правки всех вызовов.
         self.canvas = pygame.Surface((c.WIDTH, c.HEIGHT))
         pygame.display.set_caption("Battle City")
+
+        # Геймпад (если подключён): движение + огонь + пауза
+        self.joy = None
+        try:
+            pygame.joystick.init()
+            if pygame.joystick.get_count() > 0:
+                self.joy = pygame.joystick.Joystick(0)
+                self.joy.init()
+        except pygame.error:
+            self.joy = None
+
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Helvetica", 18, bold=True)
         self.small = pygame.font.SysFont("Helvetica", 13)
@@ -71,6 +88,18 @@ class Game:
         self.pause_menu = Menu(PAUSE_MENU_ITEMS, title="ПАУЗА", overlay=True)
         self.toast = ""               # короткое уведомление (сохранено/загружено)
         self.toast_until = 0
+
+        # Настройки (звук/громкость/сложность) — из файла, затем применяем
+        self.sound_on = c.SOUND_ENABLED
+        self.volume = c.DEFAULT_VOLUME
+        self.difficulty = c.DEFAULT_DIFFICULTY
+        self.settings_index = 0
+        self.pending_name = ""        # ввод имени при новом рекорде
+        self.new_score_rank = -1      # место нового результата в таблице (для подсветки)
+        self.level_start_until = 0    # до какого момента показываем заставку «Уровень N»
+        self.fade_until = 0           # затемнение-переход в бой
+        self._load_settings()
+        self._apply_settings()
         self._sync_menu_saves()
 
     def reset(self):
@@ -117,9 +146,7 @@ class Game:
         # Враги: случайное число за уровень (10–15)
         self.enemies = []
         self.spawns_pending = []      # «порталы»: враг вот-вот появится (анимация)
-        self.enemies_to_spawn = random.randint(
-            c.ENEMY_COUNT_MIN, c.ENEMY_COUNT_MAX
-        )
+        self.enemies_to_spawn = random.randint(*self.enemy_count)
         self.spawn_index = 0
         # Пауза перед первым врагом (~6 сек после старта)
         self.next_spawn_at = pygame.time.get_ticks() + c.ENEMY_START_DELAY
@@ -127,6 +154,16 @@ class Game:
     # --- Переходы состояний ---
     def start_new_game(self):
         self.reset()
+        self._show_stage()
+
+    def _show_stage(self):
+        """Заставка «Уровень N» перед боем."""
+        self.level_start_until = pygame.time.get_ticks() + c.LEVELSTART_MS
+        self.state = STATE_LEVELSTART
+
+    def _begin_play(self):
+        """Старт боя после заставки — с плавным появлением из затемнения."""
+        self.fade_until = pygame.time.get_ticks() + c.FADE_MS
         self.state = STATE_PLAYING
 
     def back_to_menu(self):
@@ -151,6 +188,40 @@ class Game:
     def _toast(self, text, ms=1500):
         self.toast = text
         self.toast_until = pygame.time.get_ticks() + ms
+
+    # --- Настройки ---
+    def _load_settings(self):
+        data = storage.load_settings()
+        if not data:
+            return
+        self.sound_on = bool(data.get("sound", self.sound_on))
+        try:
+            self.volume = max(0.0, min(1.0, float(data.get("volume", self.volume))))
+        except (TypeError, ValueError):
+            pass
+        d = data.get("difficulty", self.difficulty)
+        if d in c.DIFFICULTIES:
+            self.difficulty = d
+
+    def _apply_settings(self):
+        """Пробрасывает настройки в звук и параметры сложности."""
+        self.sounds.set_enabled(self.sound_on)
+        self.sounds.set_volume(self.volume)
+        if self.sound_on:
+            self.sounds.music_start()
+        else:
+            self.sounds.music_stop()
+        preset = c.DIFFICULTIES[self.difficulty]
+        self.enemy_count = tuple(preset["count"])
+        self.spawn_interval = preset["spawn_interval"]
+        self.max_active = preset["max_active"]
+
+    def _save_settings(self):
+        storage.save_settings({
+            "sound": self.sound_on,
+            "volume": round(self.volume, 2),
+            "difficulty": self.difficulty,
+        })
 
     def resume(self):
         self.state = STATE_PLAYING
@@ -226,13 +297,15 @@ class Game:
         if self.state != STATE_PLAYING:
             return
         self.result = result
-        # Новый рекорд? Сохраняем на диск
-        if self.score > self.highscore:
-            self.highscore = self.score
-            self.new_record = True
-            storage.save_highscore(self.highscore)
         self.sounds.engine_stop()
-        self.state = STATE_GAMEOVER
+        # Счёт попал в таблицу рекордов? Просим имя, затем показываем таблицу
+        if storage.qualifies(self.score):
+            self.new_record = True
+            self.pending_name = ""
+            self.state = STATE_NAME_ENTRY
+        else:
+            self.new_record = False
+            self.state = STATE_GAMEOVER
 
     def level_cleared(self):
         """Уровень зачищен: следующий уровень либо финальная победа."""
@@ -246,7 +319,7 @@ class Game:
 
     def next_level(self):
         self.load_level(self.level_index + 1, carry_level=self.player.level)
-        self.state = STATE_PLAYING
+        self._show_stage()
 
     # --- Сохранение / загрузка партии ---
     def serialize(self):
@@ -352,7 +425,7 @@ class Game:
         if self.enemies_to_spawn <= 0:
             return
         # Активные + уже «прорастающие» порталы не превышают лимит на поле
-        if len(self.enemies) + len(self.spawns_pending) >= c.MAX_ACTIVE_ENEMIES:
+        if len(self.enemies) + len(self.spawns_pending) >= self.max_active:
             return
         if now < self.next_spawn_at:
             return
@@ -378,7 +451,7 @@ class Game:
             })
             self.enemies_to_spawn -= 1
             self.spawn_index = (self.spawn_index + k + 1) % n
-            self.next_spawn_at = now + c.ENEMY_SPAWN_INTERVAL
+            self.next_spawn_at = now + self.spawn_interval
             return
         # Все точки заняты — попробуем в следующий раз
 
@@ -420,7 +493,7 @@ class Game:
 
     # --- Ввод ---
     def handle_game_event(self, e):
-        """Дискретные клавиши в режиме игры (стрельба, пауза, рестарт)."""
+        """Дискретные события в режиме игры (стрельба, пауза, рестарт)."""
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_p:
                 self.pause()
@@ -429,6 +502,11 @@ class Game:
             elif e.key == pygame.K_r:
                 self.reset()
             elif e.key == pygame.K_SPACE:
+                self.shoot()
+        elif e.type == pygame.JOYBUTTONDOWN:
+            if e.button in (6, 7, 9):        # select/start — пауза
+                self.pause()
+            else:                            # любая другая кнопка — огонь
                 self.shoot()
 
     def read_direction(self, keys):
@@ -440,7 +518,29 @@ class Game:
             return c.LEFT
         if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
             return c.RIGHT
-        return None
+        return self._joy_direction()
+
+    def _joy_direction(self):
+        """Направление с геймпада: крестовина (hat) или левый стик."""
+        if not self.joy:
+            return None
+        hx = hy = 0
+        try:
+            if self.joy.get_numhats() > 0:
+                hx, hy = self.joy.get_hat(0)
+            ax = self.joy.get_axis(0) if self.joy.get_numaxes() > 0 else 0.0
+            ay = self.joy.get_axis(1) if self.joy.get_numaxes() > 1 else 0.0
+        except pygame.error:
+            return None
+        dead = 0.5
+        dx = hx if hx else (1 if ax > dead else -1 if ax < -dead else 0)
+        # hat: вверх = +1; ось Y: вверх = отрицательна — приводим к «вниз = +1»
+        dy = (-hy) if hy else (1 if ay > dead else -1 if ay < -dead else 0)
+        if dx == 0 and dy == 0:
+            return None
+        if abs(dx) >= abs(dy):
+            return c.RIGHT if dx > 0 else c.LEFT
+        return c.DOWN if dy > 0 else c.UP
 
     # --- Логика ---
     def update(self):
@@ -613,6 +713,22 @@ class Game:
             self.screen.blit(rec, (c.WIDTH // 2 - rec.get_width() // 2, 36))
             pygame.display.flip()
             return
+        if self.state == STATE_SETTINGS:
+            self.draw_settings()
+            pygame.display.flip()
+            return
+        if self.state == STATE_NAME_ENTRY:
+            self.draw_name_entry()
+            pygame.display.flip()
+            return
+        if self.state == STATE_SCORES:
+            self.draw_scores()
+            pygame.display.flip()
+            return
+        if self.state == STATE_LEVELSTART:
+            self.draw_levelstart()
+            pygame.display.flip()
+            return
 
         # Сцену и оверлеи рисуем на холст, затем блиттим на экран со сдвигом-тряской
         now = pygame.time.get_ticks()
@@ -640,6 +756,12 @@ class Game:
             flash = pygame.Surface((c.FIELD_W, c.FIELD_H), pygame.SRCALPHA)
             flash.fill((255, 255, 255, int(150 * frac)))
             display.blit(flash, (ox, oy))
+
+        # Затемнение-переход: плавное появление боя из черноты
+        if now < self.fade_until:
+            fade = pygame.Surface((c.WIDTH, c.HEIGHT))
+            fade.set_alpha(int(255 * (self.fade_until - now) / c.FADE_MS))
+            display.blit(fade, (0, 0))
         pygame.display.flip()
 
     def _draw_scene(self):
@@ -845,6 +967,174 @@ class Game:
             self.screen.blit(surf, (x + 14, y))
             y += 20
 
+    # --- Экран настроек ---
+    SETTINGS_ROWS = 4                        # Звук, Громкость, Сложность, Назад
+
+    def open_settings(self):
+        self.settings_index = 0
+        self.state = STATE_SETTINGS
+
+    def _close_settings(self):
+        self._save_settings()
+        self.state = STATE_MENU
+
+    def _adjust_setting(self, d):
+        if self.settings_index == 0:         # Звук вкл/выкл
+            self.sound_on = not self.sound_on
+        elif self.settings_index == 1:       # Громкость (±20%)
+            self.volume = max(0.0, min(1.0, round(self.volume + 0.2 * d, 2)))
+        elif self.settings_index == 2:       # Сложность
+            order = c.DIFFICULTY_ORDER
+            i = (order.index(self.difficulty) + d) % len(order)
+            self.difficulty = order[i]
+        self._apply_settings()
+        if self.sounds.enabled:              # звуковой отклик на изменение
+            self.sounds.play_pickup()
+
+    def handle_settings_event(self, e):
+        if e.type != pygame.KEYDOWN:
+            return
+        if e.key in (pygame.K_UP, pygame.K_w):
+            self.settings_index = (self.settings_index - 1) % self.SETTINGS_ROWS
+        elif e.key in (pygame.K_DOWN, pygame.K_s):
+            self.settings_index = (self.settings_index + 1) % self.SETTINGS_ROWS
+        elif e.key in (pygame.K_LEFT, pygame.K_a):
+            self._adjust_setting(-1)
+        elif e.key in (pygame.K_RIGHT, pygame.K_d):
+            self._adjust_setting(1)
+        elif e.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+            if self.settings_index == self.SETTINGS_ROWS - 1:
+                self._close_settings()
+            else:
+                self._adjust_setting(1)
+        elif e.key == pygame.K_ESCAPE:
+            self._close_settings()
+
+    def draw_settings(self):
+        self.screen.fill(c.BG_COLOR)
+        cx = c.WIDTH // 2
+        title = self.big.render("НАСТРОЙКИ", True, c.PLAYER_COLOR)
+        self.screen.blit(title, (cx - title.get_width() // 2, 70))
+
+        rows = [
+            ("Звук", "Вкл" if self.sound_on else "Выкл", True),
+            ("Громкость", f"{int(self.volume * 100)}%", True),
+            ("Сложность", self.difficulty, True),
+            ("Назад", "", False),
+        ]
+        y = 190
+        for i, (label, val, adjustable) in enumerate(rows):
+            sel = i == self.settings_index
+            color = c.ACCENT if sel else c.TEXT_COLOR
+            lab = self.font.render(label, True, color)
+            self.screen.blit(lab, (cx - 170, y))
+            if val:
+                vsurf = self.font.render(val, True, color)
+                vx = cx + 150 - vsurf.get_width() // 2
+                self.screen.blit(vsurf, (vx, y))
+                if sel and adjustable:       # стрелки ‹ ›
+                    my = y + vsurf.get_height() // 2
+                    pygame.draw.polygon(self.screen, color,
+                                        [(cx + 66, my), (cx + 78, my - 7), (cx + 78, my + 7)])
+                    pygame.draw.polygon(self.screen, color,
+                                        [(cx + 234, my), (cx + 222, my - 7), (cx + 222, my + 7)])
+            if sel:
+                ty = y + lab.get_height() // 2
+                pygame.draw.polygon(self.screen, color,
+                                    [(cx - 190, ty - 7), (cx - 178, ty), (cx - 190, ty + 7)])
+            y += 60
+
+        hint = self.small.render(
+            "↑↓ — выбор · ←→ — изменить · Enter/Esc — назад", True, (150, 150, 150))
+        self.screen.blit(hint, (cx - hint.get_width() // 2, c.HEIGHT - 56))
+
+    # --- Заставка «Уровень N» ---
+    def handle_levelstart_event(self, e):
+        if e.type in (pygame.KEYDOWN, pygame.JOYBUTTONDOWN):
+            self._begin_play()               # пропустить заставку
+
+    def draw_levelstart(self):
+        self.screen.fill(c.BG_COLOR)
+        cx, cy = c.WIDTH // 2, c.HEIGHT // 2
+        t = self.big.render("УРОВЕНЬ", True, c.PLAYER_COLOR)
+        self.screen.blit(t, (cx - t.get_width() // 2, cy - 90))
+        num = self.big.render(
+            f"{self.level_index + 1} / {levels.level_count()}", True, c.WHITE)
+        self.screen.blit(num, (cx - num.get_width() // 2, cy - 30))
+        # Пара танков-иконок навстречу друг другу
+        self._mini_tank(cx - 60, cy + 44, 20, c.PLAYER_COLOR, c.PLAYER_TRACK)
+        self._mini_tank(cx + 40, cy + 44, 20, c.ENEMY_COLOR, c.ENEMY_TRACK)
+        hint = self.small.render("Пробел — начать", True, (150, 150, 150))
+        self.screen.blit(hint, (cx - hint.get_width() // 2, c.HEIGHT - 70))
+
+    # --- Ввод имени и таблица рекордов ---
+    def handle_name_entry_event(self, e):
+        if e.type != pygame.KEYDOWN:
+            return
+        if e.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
+            self.new_score_rank = storage.add_score(self.pending_name, self.score)
+            self.highscore = storage.load_highscore()
+            self.state = STATE_SCORES
+        elif e.key == pygame.K_BACKSPACE:
+            self.pending_name = self.pending_name[:-1]
+        else:
+            ch = e.unicode
+            if ch and ch.isprintable() and ch not in "\r\n\t" and len(self.pending_name) < 12:
+                self.pending_name += ch
+
+    def handle_scores_event(self, e):
+        if (e.type == pygame.KEYDOWN and e.key in (
+                pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE, pygame.K_SPACE)
+                ) or e.type == pygame.JOYBUTTONDOWN:
+            self.back_to_menu()
+
+    def draw_name_entry(self):
+        self.screen.fill(c.BG_COLOR)
+        cx = c.WIDTH // 2
+        t = self.big.render("НОВЫЙ РЕКОРД!", True, c.BASE_COLOR)
+        self.screen.blit(t, (cx - t.get_width() // 2, 120))
+        sc = self.font.render(f"Очки: {self.score}", True, c.TEXT_COLOR)
+        self.screen.blit(sc, (cx - sc.get_width() // 2, 200))
+        lbl = self.small.render("Введите имя:", True, c.STEEL_COLOR)
+        self.screen.blit(lbl, (cx - lbl.get_width() // 2, 252))
+
+        box = pygame.Rect(cx - 140, 278, 280, 44)
+        pygame.draw.rect(self.screen, (30, 34, 40), box, border_radius=4)
+        pygame.draw.rect(self.screen, c.PLAYER_COLOR, box, 2, border_radius=4)
+        cursor = "_" if (pygame.time.get_ticks() // 400) % 2 else " "
+        name = self.font.render(self.pending_name + cursor, True, c.WHITE)
+        self.screen.blit(name, (box.x + 12, box.centery - name.get_height() // 2))
+
+        hint = self.small.render(
+            "Enter — сохранить · Esc — без имени", True, (150, 150, 150))
+        self.screen.blit(hint, (cx - hint.get_width() // 2, c.HEIGHT - 70))
+
+    def draw_scores(self):
+        self.screen.fill(c.BG_COLOR)
+        cx = c.WIDTH // 2
+        t = self.big.render("РЕКОРДЫ", True, c.PLAYER_COLOR)
+        self.screen.blit(t, (cx - t.get_width() // 2, 40))
+
+        scores = storage.load_scores()
+        if not scores:
+            empty = self.font.render("Пока пусто — сыграйте!", True, c.STEEL_COLOR)
+            self.screen.blit(empty, (cx - empty.get_width() // 2, 220))
+        else:
+            y = 120
+            for i, s in enumerate(scores):
+                color = c.BASE_COLOR if i == self.new_score_rank else c.TEXT_COLOR
+                self.screen.blit(self.font.render(f"{i + 1:2d}.", True, color), (cx - 200, y))
+                self.screen.blit(self.font.render(s["name"], True, color), (cx - 150, y))
+                num = self.font.render(str(s["score"]), True, color)
+                self.screen.blit(num, (cx + 70 - num.get_width(), y))
+                if s["date"]:
+                    self.screen.blit(self.small.render(s["date"], True, (140, 140, 140)),
+                                     (cx + 100, y + 4))
+                y += 34
+
+        hint = self.small.render("Enter/Esc — назад", True, (150, 150, 150))
+        self.screen.blit(hint, (cx - hint.get_width() // 2, c.HEIGHT - 46))
+
     def draw_controls(self):
         dim = pygame.Surface((c.FIELD_W, c.FIELD_H), pygame.SRCALPHA)
         dim.fill((10, 10, 14, 215))
@@ -932,12 +1222,25 @@ class Game:
                     self.handle_pause_event(e)
                 elif self.state == STATE_CONTROLS:
                     self.handle_controls_event(e)
+                elif self.state == STATE_SETTINGS:
+                    self.handle_settings_event(e)
+                elif self.state == STATE_LEVELSTART:
+                    self.handle_levelstart_event(e)
+                elif self.state == STATE_NAME_ENTRY:
+                    self.handle_name_entry_event(e)
+                elif self.state == STATE_SCORES:
+                    self.handle_scores_event(e)
                 elif self.state == STATE_LEVELCLEAR:
                     self.handle_levelclear_event(e)
                 elif self.state == STATE_GAMEOVER:
                     self.handle_gameover_event(e)
                 else:
                     self.handle_game_event(e)
+
+            # Заставка «Уровень N» сама сменяется боем по таймеру
+            if (self.state == STATE_LEVELSTART
+                    and pygame.time.get_ticks() >= self.level_start_until):
+                self._begin_play()
 
             if self.state == STATE_PLAYING:
                 self.update()
@@ -950,9 +1253,13 @@ class Game:
             self.start_new_game()
         elif action == "load":
             self._load_game()
+        elif action == "settings":
+            self.open_settings()
+        elif action == "scores":
+            self.new_score_rank = -1
+            self.state = STATE_SCORES
         elif action == "quit":
             self.quit()
-        # «settings» пока без действия
 
     def handle_pause_event(self, e):
         # P или Esc — быстро снять паузу
@@ -979,7 +1286,7 @@ class Game:
             pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE,
         ):
             self.state = STATE_PAUSED
-        elif e.type == pygame.MOUSEBUTTONDOWN:
+        elif e.type in (pygame.MOUSEBUTTONDOWN, pygame.JOYBUTTONDOWN):
             self.state = STATE_PAUSED
 
     def handle_levelclear_event(self, e):
@@ -988,6 +1295,8 @@ class Game:
                 self.next_level()
             elif e.key == pygame.K_ESCAPE:
                 self.back_to_menu()
+        elif e.type == pygame.JOYBUTTONDOWN:
+            self.next_level()
 
     def handle_gameover_event(self, e):
         if e.type == pygame.KEYDOWN:
@@ -995,3 +1304,5 @@ class Game:
                 self.start_new_game()
             elif e.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_KP_ENTER):
                 self.back_to_menu()
+        elif e.type == pygame.JOYBUTTONDOWN:
+            self.back_to_menu()

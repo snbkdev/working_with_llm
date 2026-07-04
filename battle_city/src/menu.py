@@ -73,6 +73,13 @@ class Menu:
             for i, rect in enumerate(self.item_rects()):
                 if rect.collidepoint(event.pos):
                     return self._activate(i)
+        elif event.type == pygame.JOYHATMOTION:      # крестовина геймпада
+            if event.value[1] > 0:
+                self._move(-1)
+            elif event.value[1] < 0:
+                self._move(1)
+        elif event.type == pygame.JOYBUTTONDOWN:
+            return self._activate(self.index)
         return None
 
     # --- Отрисовка ---
