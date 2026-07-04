@@ -47,6 +47,9 @@ class Game:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((c.WIDTH, c.HEIGHT))
+        # Промежуточный холст: сцена рисуется на него, затем блиттится на экран
+        # со смещением — так реализуется тряска экрана без правки всех вызовов.
+        self.canvas = pygame.Surface((c.WIDTH, c.HEIGHT))
         pygame.display.set_caption("Battle City")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Helvetica", 18, bold=True)
@@ -94,8 +97,15 @@ class Game:
             pygame.time.get_ticks() + c.PLAYER_INVULN_MS
         )
 
+        # Тряска экрана и вспышка
+        self.shake_until = 0
+        self.shake_mag = 0
+        self.shake_dur = 1
+        self.flash_until = 0
+
         # Враги: случайное число за уровень (10–15)
         self.enemies = []
+        self.spawns_pending = []      # «порталы»: враг вот-вот появится (анимация)
         self.enemies_to_spawn = random.randint(
             c.ENEMY_COUNT_MIN, c.ENEMY_COUNT_MAX
         )
@@ -158,10 +168,12 @@ class Game:
                 if e.alive:
                     self.spawn_explosion(e.rect.center, big=True)
                     e.alive = False
-                    self.score += c.ENEMY_TOUGH_SCORE if e.tough else c.ENEMY_SCORE
+                    self.score += e.score
                     killed = True
             if killed:
                 self.sounds.play_explosion()
+                self._shake(c.SHAKE_BIG)
+                self._flash()
         elif kind == "steel":
             # Сталь: одеть базу в стальную броню на время
             self.level.set_base_walls("steel")
@@ -231,31 +243,87 @@ class Game:
         self.last_shot = now
 
     # --- Появление врагов ---
+    def _roll_enemy_kind(self):
+        """Выбирает тип врага по составу текущего уровня (взвешенный рандом)."""
+        level = self.level_index + 1
+        weights = c.ENEMY_SPAWN_TABLE[0][1]
+        for min_lvl, table in c.ENEMY_SPAWN_TABLE:
+            if level >= min_lvl:
+                weights = table
+        return random.choices(list(weights), list(weights.values()))[0]
+
+    def _cell_rect(self, cell):
+        return pygame.Rect(cell[0] * c.TILE, cell[1] * c.TILE, c.TILE, c.TILE)
+
     def try_spawn_enemy(self, now):
         if self.enemies_to_spawn <= 0:
             return
-        if len(self.enemies) >= c.MAX_ACTIVE_ENEMIES:
+        # Активные + уже «прорастающие» порталы не превышают лимит на поле
+        if len(self.enemies) + len(self.spawns_pending) >= c.MAX_ACTIVE_ENEMIES:
             return
         if now < self.next_spawn_at:
             return
 
         spawns = self.level.enemy_spawns           # лево / центр / право
-        occupied = [t.rect for t in self.enemies] + [self.player.rect]
+        occupied = ([t.rect for t in self.enemies] + [self.player.rect]
+                    + [self._cell_rect(s["cell"]) for s in self.spawns_pending])
 
         # Берём первую свободную точку, перебирая по кругу от текущего индекса
         n = len(spawns)
-        tough = self.level_index + 1 >= c.TOUGH_ENEMY_FROM_LEVEL  # после 10 уровня
+        reinforced = self.level_index + 1 >= c.TOUGH_ENEMY_FROM_LEVEL  # после 10 уровня
         for k in range(n):
             cell = spawns[(self.spawn_index + k) % n]
-            bonus = random.random() < c.BONUS_ENEMY_CHANCE
-            enemy = Enemy(*cell, bonus=bonus, tough=tough)
-            if not any(enemy.rect.colliderect(o) for o in occupied):
-                self.enemies.append(enemy)
-                self.enemies_to_spawn -= 1
-                self.spawn_index = (self.spawn_index + k + 1) % n
-                self.next_spawn_at = now + c.ENEMY_SPAWN_INTERVAL
-                return
+            if any(self._cell_rect(cell).colliderect(o) for o in occupied):
+                continue
+            # Ставим «портал»: враг появится после анимации (даём игроку среагировать)
+            self.spawns_pending.append({
+                "cell": cell,
+                "kind": self._roll_enemy_kind(),
+                "bonus": random.random() < c.BONUS_ENEMY_CHANCE,
+                "reinforced": reinforced,
+                "start": now,
+            })
+            self.enemies_to_spawn -= 1
+            self.spawn_index = (self.spawn_index + k + 1) % n
+            self.next_spawn_at = now + c.ENEMY_SPAWN_INTERVAL
+            return
         # Все точки заняты — попробуем в следующий раз
+
+    def _resolve_spawns(self, now):
+        """Дозревшие «порталы» превращает во врагов, если клетка свободна."""
+        still = []
+        for s in self.spawns_pending:
+            if now - s["start"] < c.SPAWN_ANIM_MS:
+                still.append(s)
+                continue
+            enemy = Enemy(*s["cell"], bonus=s["bonus"], kind=s["kind"],
+                          reinforced=s["reinforced"])
+            blockers = [t.rect for t in self.enemies] + [self.player.rect]
+            if any(enemy.rect.colliderect(b) for b in blockers):
+                still.append(s)            # клетка занята — ждём следующий кадр
+            else:
+                self.enemies.append(enemy)
+        self.spawns_pending = still
+
+    # --- Тряска экрана и вспышка ---
+    def _shake(self, mag, dur=c.SHAKE_MS):
+        now = pygame.time.get_ticks()
+        # Не гасим более сильную тряску слабой
+        if now < self.shake_until and mag < self.shake_mag:
+            return
+        self.shake_mag = mag
+        self.shake_dur = dur
+        self.shake_until = now + dur
+
+    def _flash(self):
+        self.flash_until = pygame.time.get_ticks() + c.FLASH_MS
+
+    def _shake_offset(self, now):
+        if now >= self.shake_until:
+            return (0, 0)
+        frac = (self.shake_until - now) / self.shake_dur   # затухание к нулю
+        mag = max(1, int(self.shake_mag * frac))
+        return (random.randint(-mag, mag), random.randint(-mag, mag))
 
     # --- Ввод ---
     def handle_game_event(self, e):
@@ -285,6 +353,7 @@ class Game:
     def update(self):
         now = pygame.time.get_ticks()
         self.try_spawn_enemy(now)
+        self._resolve_spawns(now)      # дозревшие «порталы» → враги
 
         keys = pygame.key.get_pressed()
         direction = self.read_direction(keys)
@@ -345,6 +414,8 @@ class Game:
                     b.alive = False
                     self.spawn_explosion(b.rect.center, big=True)
                     self.sounds.play_explosion()
+                    self._shake(c.SHAKE_BIG, int(c.SHAKE_MS * 1.5))
+                    self._flash()
                     self.game_over("lose")
                     continue
                 self.spawn_explosion(b.rect.center, big=False)
@@ -371,8 +442,8 @@ class Game:
         self.explosions = [ex for ex in self.explosions if ex.alive]
         self.powerups = [p for p in self.powerups if p.alive]
 
-        # Уровень зачищен: все враги уничтожены и больше не появятся
-        if self.enemies_to_spawn == 0 and not self.enemies:
+        # Уровень зачищен: все враги уничтожены, порталов нет и больше не появятся
+        if self.enemies_to_spawn == 0 and not self.enemies and not self.spawns_pending:
             self.level_cleared()
 
     def _bullet_vs_tanks(self, b, now):
@@ -380,14 +451,13 @@ class Game:
             for e in self.enemies:
                 if e.alive and b.rect.colliderect(e.rect):
                     b.alive = False
-                    e.hp -= 1
-                    if e.hp > 0:
-                        # тяжёлый враг выдержал попадание — только «тик» и вспышка
+                    if not e.damage():
+                        # броневой враг выдержал попадание — только «тик» и вспышка
                         self.spawn_explosion(e.rect.center, big=False)
                         self.sounds.play_hit()
                         return
                     e.alive = False
-                    self.score += c.ENEMY_TOUGH_SCORE if e.tough else c.ENEMY_SCORE
+                    self.score += e.score
                     self.spawn_explosion(e.rect.center, big=True)
                     self.sounds.play_explosion()
                     if e.bonus:
@@ -399,6 +469,7 @@ class Game:
                 if now >= self.player_invuln_until:
                     self.spawn_explosion(self.player.rect.center, big=True)
                     self.sounds.play_explosion()
+                    self._shake(c.SHAKE_SMALL)
                     self.player_hit()
                 else:
                     self.sounds.play_hit()      # щит поглотил пулю — лёгкий «тик»
@@ -423,6 +494,10 @@ class Game:
             pygame.display.flip()
             return
 
+        # Сцену и оверлеи рисуем на холст, затем блиттим на экран со сдвигом-тряской
+        now = pygame.time.get_ticks()
+        display = self.screen
+        self.screen = self.canvas
         self._draw_scene()
         if self.state == STATE_PAUSED:
             self.pause_menu.draw(self.screen)
@@ -432,6 +507,19 @@ class Game:
             self.draw_levelclear()
         elif self.state == STATE_GAMEOVER:
             self.draw_gameover()
+        self.screen = display
+
+        ox, oy = self._shake_offset(now)
+        if ox or oy:
+            display.fill(c.BG_COLOR)
+        display.blit(self.canvas, (ox, oy))
+
+        # Белая вспышка поверх поля (разрушение базы / бомба)
+        if now < self.flash_until:
+            frac = (self.flash_until - now) / c.FLASH_MS
+            flash = pygame.Surface((c.FIELD_W, c.FIELD_H), pygame.SRCALPHA)
+            flash.fill((255, 255, 255, int(150 * frac)))
+            display.blit(flash, (ox, oy))
         pygame.display.flip()
 
     def _draw_scene(self):
@@ -442,17 +530,15 @@ class Game:
         now = pygame.time.get_ticks()
         for p in self.powerups:
             p.draw(self.screen)
+        self._draw_spawns(now)                       # «порталы» появления врагов
         self.player.draw(self.screen)
         if now < self.player_invuln_until:          # щит: респаун или каска
             self._draw_shield(self.player.rect, now)
         frozen = self.freeze_until is not None and now < self.freeze_until
         for e in self.enemies:
             e.draw(self.screen)
-            if e.tough:                              # тяжёлый враг — стальная окантовка
+            if e.armored:                            # броневой/усиленный — стальная окантовка
                 pygame.draw.rect(self.screen, c.STEEL_COLOR, e.rect, 2, border_radius=5)
-                if e.hp <= 1:                        # пробит один раз — «трещина»
-                    pygame.draw.line(self.screen, c.ACCENT,
-                                     e.rect.topleft, e.rect.bottomright, 2)
             if frozen:                               # заморожены «часами» — ледяной налёт
                 ice = pygame.Surface((e.rect.width, e.rect.height), pygame.SRCALPHA)
                 ice.fill((*c.FREEZE_TINT, 90))
@@ -471,6 +557,18 @@ class Game:
         """Пульсирующее кольцо-щит вокруг танка (неуязвимость)."""
         radius = rect.width // 2 + 4 + (now // 80) % 3
         pygame.draw.circle(self.screen, c.SHIELD_COLOR, rect.center, radius, 2)
+
+    def _draw_spawns(self, now):
+        """Мигающая звезда-портал на месте скорого появления врага."""
+        for s in self.spawns_pending:
+            cx = s["cell"][0] * c.TILE + c.TILE // 2
+            cy = s["cell"][1] * c.TILE + c.TILE // 2
+            phase = (now // 70) % 2
+            pulse = abs(math.sin((now - s["start"]) / 130.0))
+            r = int(c.TILE * 0.18 + c.TILE * 0.22 * pulse)
+            self._mini_star(cx, cy, r, c.SPAWN_COLOR_A if phase else c.SPAWN_COLOR_B)
+            self._mini_star(cx, cy, max(2, r // 2),
+                            c.SPAWN_COLOR_B if phase else c.SPAWN_COLOR_A)
 
     def draw_grid(self):
         for x in range(c.TILE, c.FIELD_W, c.TILE):
@@ -494,6 +592,34 @@ class Game:
             ang = -math.pi / 2 + math.pi * i / 5
             pts.append((cx + rad * math.cos(ang), cy + rad * math.sin(ang)))
         pygame.draw.polygon(self.screen, color, pts)
+
+    def _draw_active_effects(self, x, y):
+        """Иконки активных бонусов с убывающей полоской времени."""
+        now = pygame.time.get_ticks()
+        effects = []
+        if self.freeze_until and now < self.freeze_until:
+            effects.append(("Заморозка", c.CLOCK_COLOR,
+                            (self.freeze_until - now) / c.FREEZE_DURATION))
+        if self.steel_until and now < self.steel_until:
+            effects.append(("Броня базы", c.STEEL_ITEM_COLOR,
+                            (self.steel_until - now) / c.STEEL_DURATION))
+        if now < self.player_invuln_until:
+            effects.append(("Щит", c.SHIELD_COLOR,
+                            (self.player_invuln_until - now) / c.PLAYER_INVULN_MS))
+        if not effects:
+            return
+
+        lbl = self.small.render("ЭФФЕКТЫ", True, c.HUD_TEXT)
+        self.screen.blit(lbl, (x + 14, y))
+        y += 20
+        for name, color, frac in effects:
+            frac = max(0.0, min(1.0, frac))
+            pygame.draw.rect(self.screen, color, (x + 14, y + 2, 10, 10), border_radius=2)
+            self.screen.blit(self.small.render(name, True, c.HUD_TEXT), (x + 30, y))
+            bw, by = c.HUD_W - 44, y + 16
+            pygame.draw.rect(self.screen, (70, 70, 70), (x + 14, by, bw, 4), border_radius=2)
+            pygame.draw.rect(self.screen, color, (x + 14, by, int(bw * frac), 4), border_radius=2)
+            y += 28
 
     def draw_hud(self):
         x = c.FIELD_W
@@ -528,7 +654,8 @@ class Game:
                          (x + 12, 138), (x + c.HUD_W - 12, 138), 1)
 
         # --- Враги (осталось за уровень) ---
-        remaining = self.enemies_to_spawn + len(self.enemies)
+        remaining = (self.enemies_to_spawn + len(self.enemies)
+                     + len(self.spawns_pending))
         lbl2 = self.small.render("ВРАГИ", True, c.HUD_TEXT)
         self.screen.blit(lbl2, (x + 14, 152))
         num2 = self.font.render(str(remaining), True, (70, 30, 30))
@@ -540,6 +667,9 @@ class Game:
             row = i // 6
             self._mini_tank(ix + col * 21, iy + row * 22, 15,
                             c.ENEMY_COLOR, c.ENEMY_TRACK)
+
+        # --- Активные бонусы (с таймером) ---
+        self._draw_active_effects(x, 300)
 
         # --- Апгрейд танка (звёзды) ---
         tlbl = self.small.render("ТАНК", True, c.HUD_TEXT)

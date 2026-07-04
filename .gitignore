@@ -60,6 +60,7 @@ career_coach/app/static/uploads/
 *.svg
 docs.md
 PLAN.md
+plan_bc.md
 SIDEBAR_ROLES.md
 
 snake_mult/

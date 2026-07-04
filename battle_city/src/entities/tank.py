@@ -19,6 +19,7 @@ class Tank:
         self.speed = c.PLAYER_SPEED if is_player else c.ENEMY_SPEED
         self.level = 0          # апгрейд от звезды (только у игрока): 0..PLAYER_MAX_LEVEL
         self.size = c.TANK_SIZE  # габарит; у игрока растёт со звёздами (см. set_level)
+        self.body_color = None   # цвет корпуса; None → по умолчанию (игрок/враг)
         self.alive = True
 
     @property
@@ -103,7 +104,7 @@ class Tank:
     # --- Отрисовка ---
     def draw(self, screen):
         r = self.rect
-        body = c.PLAYER_COLOR if self.is_player else c.ENEMY_COLOR
+        body = self.body_color or (c.PLAYER_COLOR if self.is_player else c.ENEMY_COLOR)
         track = c.PLAYER_TRACK if self.is_player else c.ENEMY_TRACK
         out = c.TANK_OUTLINE
         horiz = self.dir in (c.LEFT, c.RIGHT)
