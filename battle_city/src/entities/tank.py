@@ -30,17 +30,19 @@ class Tank:
         """Отступ танка внутри клетки при текущем размере (центрирование в полосе)."""
         return (c.TILE - self.size) // 2
 
+    def resize(self, size):
+        """Сменить габарит танка, сохранив его центр (и не выпустив за поле)."""
+        cx, cy = self.rect.center
+        self.size = size
+        self.x = cx - size / 2
+        self.y = cy - size / 2
+        self.x = max(0, min(self.x, c.FIELD_W - size))
+        self.y = max(0, min(self.y, c.FIELD_H - size))
+
     def set_level(self, level):
         """Задать уровень апгрейда и подросший габарит, сохранив центр танка."""
         self.level = level
-        new_size = c.PLAYER_TANK_SIZES[min(level, len(c.PLAYER_TANK_SIZES) - 1)]
-        cx, cy = self.rect.center
-        self.size = new_size
-        self.x = cx - new_size / 2
-        self.y = cy - new_size / 2
-        # Не выпускаем крупный танк за пределы поля
-        self.x = max(0, min(self.x, c.FIELD_W - new_size))
-        self.y = max(0, min(self.y, c.FIELD_H - new_size))
+        self.resize(c.PLAYER_TANK_SIZES[min(level, len(c.PLAYER_TANK_SIZES) - 1)])
 
     # --- Движение ---
     def _snap(self, value):

@@ -13,9 +13,13 @@ DIRECTIONS = [c.UP, c.DOWN, c.LEFT, c.RIGHT]
 
 
 class Enemy(Tank):
-    def __init__(self, col, row, bonus=False):
+    def __init__(self, col, row, bonus=False, tough=False):
         super().__init__(col, row, c.DOWN, is_player=False)
         self.bonus = bonus       # носитель бонуса: при уничтожении роняет power-up
+        self.tough = tough       # тяжёлый враг (после 10 уровня): крупнее и живучее
+        self.hp = c.ENEMY_TOUGH_HP if tough else 1
+        if tough:
+            self.resize(c.ENEMY_TOUGH_SIZE)
 
     def update_ai(self, solids, blockers):
         """Один шаг ИИ. Возвращает Bullet, если враг выстрелил, иначе None."""

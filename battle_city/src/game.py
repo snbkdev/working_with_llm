@@ -158,7 +158,7 @@ class Game:
                 if e.alive:
                     self.spawn_explosion(e.rect.center, big=True)
                     e.alive = False
-                    self.score += c.ENEMY_SCORE
+                    self.score += c.ENEMY_TOUGH_SCORE if e.tough else c.ENEMY_SCORE
                     killed = True
             if killed:
                 self.sounds.play_explosion()
@@ -244,10 +244,11 @@ class Game:
 
         # Берём первую свободную точку, перебирая по кругу от текущего индекса
         n = len(spawns)
+        tough = self.level_index + 1 >= c.TOUGH_ENEMY_FROM_LEVEL  # после 10 уровня
         for k in range(n):
             cell = spawns[(self.spawn_index + k) % n]
             bonus = random.random() < c.BONUS_ENEMY_CHANCE
-            enemy = Enemy(*cell, bonus=bonus)
+            enemy = Enemy(*cell, bonus=bonus, tough=tough)
             if not any(enemy.rect.colliderect(o) for o in occupied):
                 self.enemies.append(enemy)
                 self.enemies_to_spawn -= 1
@@ -378,9 +379,15 @@ class Game:
         if b.owner == "player":
             for e in self.enemies:
                 if e.alive and b.rect.colliderect(e.rect):
-                    e.alive = False
                     b.alive = False
-                    self.score += c.ENEMY_SCORE
+                    e.hp -= 1
+                    if e.hp > 0:
+                        # тяжёлый враг выдержал попадание — только «тик» и вспышка
+                        self.spawn_explosion(e.rect.center, big=False)
+                        self.sounds.play_hit()
+                        return
+                    e.alive = False
+                    self.score += c.ENEMY_TOUGH_SCORE if e.tough else c.ENEMY_SCORE
                     self.spawn_explosion(e.rect.center, big=True)
                     self.sounds.play_explosion()
                     if e.bonus:
@@ -441,6 +448,11 @@ class Game:
         frozen = self.freeze_until is not None and now < self.freeze_until
         for e in self.enemies:
             e.draw(self.screen)
+            if e.tough:                              # тяжёлый враг — стальная окантовка
+                pygame.draw.rect(self.screen, c.STEEL_COLOR, e.rect, 2, border_radius=5)
+                if e.hp <= 1:                        # пробит один раз — «трещина»
+                    pygame.draw.line(self.screen, c.ACCENT,
+                                     e.rect.topleft, e.rect.bottomright, 2)
             if frozen:                               # заморожены «часами» — ледяной налёт
                 ice = pygame.Surface((e.rect.width, e.rect.height), pygame.SRCALPHA)
                 ice.fill((*c.FREEZE_TINT, 90))
