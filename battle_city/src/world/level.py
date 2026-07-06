@@ -78,6 +78,29 @@ class Level:
             rects.append(self.base_rect())
         return rects
 
+    def _cell_bounds(self, rect):
+        """Диапазон клеток [c0..c1]×[r0..r1], которые перекрывает rect."""
+        c0 = max(0, rect.left // c.TILE)
+        c1 = min(c.COLS - 1, (rect.right - 1) // c.TILE)
+        r0 = max(0, rect.top // c.TILE)
+        r1 = min(c.ROWS - 1, (rect.bottom - 1) // c.TILE)
+        return c0, c1, r0, r1
+
+    def solids_near(self, rect):
+        """Только препятствия рядом с rect — клетки поля как пространственный
+        индекс (O(площади запроса) вместо перебора всех стен)."""
+        q = rect.inflate(c.TILE, c.TILE)             # запас на шаг движения
+        c0, c1, r0, r1 = self._cell_bounds(q)
+        out = []
+        for col in range(c0, c1 + 1):
+            for row in range(r0, r1 + 1):
+                cell = (col, row)
+                if cell in self.bricks or cell in self.steels or cell in self.water:
+                    out.append(tile_rect(col, row))
+        if self.base_alive and self.base_rect().colliderect(q):
+            out.append(self.base_rect())
+        return out
+
     def base_rect(self):
         return tile_rect(*self.base_cell)
 
@@ -110,15 +133,19 @@ class Level:
         if self.base_alive and rect.colliderect(self.base_rect()):
             self.base_alive = False
             return "base"
-        # Сталь
-        for cell in list(self.steels):
-            if rect.colliderect(tile_rect(*cell)):
+        # Проверяем только клетки, которые пуля реально перекрывает (обычно 1–2)
+        c0, c1, r0, r1 = self._cell_bounds(rect)
+        cells = [(col, row) for col in range(c0, c1 + 1)
+                 for row in range(r0, r1 + 1)]
+        # Сталь (приоритетнее кирпича — гасит пулю, если не пробивает)
+        for cell in cells:
+            if cell in self.steels:
                 if pierce_steel:
                     self.steels.discard(cell)
                 return "steel"
         # Кирпич
-        for cell in list(self.bricks):
-            if rect.colliderect(tile_rect(*cell)):
+        for cell in cells:
+            if cell in self.bricks:
                 self.bricks.discard(cell)
                 return "brick"
         return None

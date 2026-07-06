@@ -12,6 +12,7 @@ import sys
 import pygame
 
 from . import config as c
+from .entities.boss import Boss
 from .entities.enemy import Enemy
 from .entities.explosion import Explosion
 from .entities import particle
@@ -29,6 +30,7 @@ STATE_PAUSED = "paused"
 STATE_CONTROLS = "controls"
 STATE_SETTINGS = "settings"
 STATE_LEVELSTART = "levelstart"
+STATE_LEVELSELECT = "levelselect"
 STATE_NAME_ENTRY = "name_entry"
 STATE_SCORES = "scores"
 STATE_LEVELCLEAR = "levelclear"
@@ -37,6 +39,7 @@ STATE_GAMEOVER = "gameover"
 MAIN_MENU_ITEMS = [
     ("Новая игра", "new_game", True),
     ("Загрузка", "load", False),        # активируется, если есть сохранение
+    ("Выбор уровня", "levelselect", True),
     ("Рекорды", "scores", True),
     ("Настройки", "settings", True),
     ("Выход", "quit", True),
@@ -94,6 +97,7 @@ class Game:
         self.volume = c.DEFAULT_VOLUME
         self.difficulty = c.DEFAULT_DIFFICULTY
         self.settings_index = 0
+        self.select_index = 0         # курсор на экране выбора уровня
         self.pending_name = ""        # ввод имени при новом рекорде
         self.new_score_rank = -1      # место нового результата в таблице (для подсветки)
         self.level_start_until = 0    # до какого момента показываем заставку «Уровень N»
@@ -123,6 +127,7 @@ class Game:
             self.player.set_level(carry_level)      # звезда сохраняется между уровнями
         self.bullets = []
         self.explosions = []
+        self.particles = []           # искры/дым/обломки (juice)
         self.powerups = []
         self.steel_until = None       # пока активна стальная броня базы («сталь»)
         self.freeze_until = None      # пока враги заморожены («часы»)
@@ -151,10 +156,89 @@ class Game:
         # Пауза перед первым врагом (~6 сек после старта)
         self.next_spawn_at = pygame.time.get_ticks() + c.ENEMY_START_DELAY
 
+        # Босс на финальном уровне: немного эскорта + сам босс через задержку
+        self.boss = None
+        self.boss_spawn_at = 0
+        self.is_boss_level = index == levels.level_count() - 1
+        if self.is_boss_level:
+            self.enemies_to_spawn = c.BOSS_ESCORTS
+            self.boss_spawn_at = pygame.time.get_ticks() + c.BOSS_SPAWN_DELAY
+
     # --- Переходы состояний ---
     def start_new_game(self):
         self.reset()
         self._show_stage()
+
+    def start_at_level(self, index):
+        """Новая партия, но с выбранного уровня (счёт/жизни сбрасываются)."""
+        self.lives = c.PLAYER_LIVES
+        self.score = 0
+        self.new_record = False
+        self.load_level(index)
+        self._show_stage()
+
+    # --- Выбор уровня ---
+    SELECT_COLS = 5                   # сетка номеров уровней
+
+    def open_levelselect(self):
+        self.select_index = 0
+        self.state = STATE_LEVELSELECT
+
+    def handle_levelselect_event(self, e):
+        n = levels.level_count()
+        cols = self.SELECT_COLS
+        if e.type == pygame.KEYDOWN:
+            if e.key in (pygame.K_LEFT, pygame.K_a):
+                self.select_index = (self.select_index - 1) % n
+            elif e.key in (pygame.K_RIGHT, pygame.K_d):
+                self.select_index = (self.select_index + 1) % n
+            elif e.key in (pygame.K_UP, pygame.K_w):
+                self.select_index = (self.select_index - cols) % n
+            elif e.key in (pygame.K_DOWN, pygame.K_s):
+                self.select_index = (self.select_index + cols) % n
+            elif e.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                self.start_at_level(self.select_index)
+            elif e.key == pygame.K_ESCAPE:
+                self.back_to_menu()
+        elif e.type == pygame.JOYHATMOTION:
+            hx, hy = e.value
+            if hx:
+                self.select_index = (self.select_index + hx) % n
+            if hy:
+                self.select_index = (self.select_index - hy * cols) % n
+        elif e.type == pygame.JOYBUTTONDOWN:
+            self.start_at_level(self.select_index)
+
+    def draw_levelselect(self):
+        self.screen.fill(c.BG_COLOR)
+        cx = c.WIDTH // 2
+        title = self.big.render("ВЫБОР УРОВНЯ", True, c.PLAYER_COLOR)
+        self.screen.blit(title, (cx - title.get_width() // 2, 50))
+
+        n = levels.level_count()
+        cols = self.SELECT_COLS
+        cell, gap = 54, 12
+        rows = (n + cols - 1) // cols
+        grid_w = cols * cell + (cols - 1) * gap
+        x0 = cx - grid_w // 2
+        y0 = 140
+        for i in range(n):
+            r, col = divmod(i, cols)
+            rx = x0 + col * (cell + gap)
+            ry = y0 + r * (cell + gap)
+            box = pygame.Rect(rx, ry, cell, cell)
+            sel = i == self.select_index
+            pygame.draw.rect(self.screen, (30, 34, 40), box, border_radius=6)
+            pygame.draw.rect(self.screen, c.ACCENT if sel else (80, 84, 92),
+                             box, 3 if sel else 1, border_radius=6)
+            col_txt = c.WHITE if sel else c.TEXT_COLOR
+            num = self.font.render(str(i + 1), True, col_txt)
+            self.screen.blit(num, (box.centerx - num.get_width() // 2,
+                                   box.centery - num.get_height() // 2))
+
+        hint = self.small.render(
+            "↑↓←→ — выбор · Enter — старт · Esc — назад", True, (150, 150, 150))
+        self.screen.blit(hint, (cx - hint.get_width() // 2, c.HEIGHT - 46))
 
     def _show_stage(self):
         """Заставка «Уровень N» перед боем."""
@@ -229,6 +313,9 @@ class Game:
     # --- Бой и исходы ---
     def spawn_explosion(self, pos, big=True):
         self.explosions.append(Explosion(pos[0], pos[1], big))
+        if big:                        # живая «пыль»: искры + поднимающийся дым
+            self.particles += particle.spark_burst(pos[0], pos[1], c.EXPLOSION_CORE)
+            self.particles += particle.smoke_puff(pos[0], pos[1])
 
     # --- Бонусы (power-ups) ---
     def spawn_powerup(self):
@@ -433,6 +520,8 @@ class Game:
         spawns = self.level.enemy_spawns           # лево / центр / право
         occupied = ([t.rect for t in self.enemies] + [self.player.rect]
                     + [self._cell_rect(s["cell"]) for s in self.spawns_pending])
+        if self.boss and self.boss.alive:
+            occupied.append(self.boss.rect)
 
         # Берём первую свободную точку, перебирая по кругу от текущего индекса
         n = len(spawns)
@@ -465,6 +554,8 @@ class Game:
             enemy = Enemy(*s["cell"], bonus=s["bonus"], kind=s["kind"],
                           reinforced=s["reinforced"])
             blockers = [t.rect for t in self.enemies] + [self.player.rect]
+            if self.boss and self.boss.alive:
+                blockers.append(self.boss.rect)
             if any(enemy.rect.colliderect(b) for b in blockers):
                 still.append(s)            # клетка занята — ждём следующий кадр
             else:
@@ -548,23 +639,32 @@ class Game:
         self.try_spawn_enemy(now)
         self._resolve_spawns(now)      # дозревшие «порталы» → враги
 
+        # Появление босса на финальном уровне — с тряской и вспышкой
+        if self.is_boss_level and self.boss is None and now >= self.boss_spawn_at:
+            self.boss = Boss((c.FIELD_W - c.BOSS_SIZE) // 2, 4)
+            self.spawn_explosion(self.boss.rect.center, big=True)
+            self.sounds.play_explosion()
+            self._shake(c.SHAKE_BIG)
+            self._flash()
+
         keys = pygame.key.get_pressed()
         direction = self.read_direction(keys)
-        solids = self.level.solid_rects()
 
         # Игрок (враги — препятствия). На льду — скольжение по инерции.
+        # Стены берём только рядом с танком (клеточный индекс, не весь список).
         enemy_rects = [e.rect for e in self.enemies]
+        psolids = self.level.solids_near(self.player.rect)
         on_ice = self.level.is_ice(self.player.rect.center)
         moved = False
         if direction is not None:
             self.player.face(direction)
-            moved = self.player.try_move(solids, enemy_rects)
+            moved = self.player.try_move(psolids, enemy_rects)
             if moved and on_ice:                     # запоминаем инерцию
                 self.player.glide_dir = direction
                 self.player.glide_until = now + c.ICE_SLIDE_MS
         elif on_ice and now < self.player.glide_until and self.player.glide_dir:
             self.player.dir = self.player.glide_dir  # скользим по льду после отпускания
-            moved = self.player.try_move(solids, enemy_rects)
+            moved = self.player.try_move(psolids, enemy_rects)
             if not moved:
                 self.player.glide_until = 0          # упёрлись — стоп
 
@@ -597,9 +697,12 @@ class Game:
             for e in self.enemies:
                 blockers = [o.rect for o in self.enemies if o is not e]
                 blockers.append(self.player.rect)
-                bullet = e.update_ai(solids, blockers)
+                bullet = e.update_ai(self.level.solids_near(e.rect), blockers)
                 if bullet is not None:
                     self.bullets.append(bullet)
+            if self.boss and self.boss.alive:       # босс патрулирует и бьёт «веером»
+                self.bullets += self.boss.update(
+                    now, self.level.solids_near(self.boss.rect), self.player.rect)
 
         # Пули
         for b in self.bullets:
@@ -621,6 +724,12 @@ class Game:
                     self.game_over("lose")
                     continue
                 self.spawn_explosion(b.rect.center, big=False)
+                bx, by = b.rect.center
+                if res == "steel":       # сталь — сноп искр
+                    self.particles += particle.spark_burst(
+                        bx, by, c.STEEL_COLOR, count=8, speed=3.2, life=280)
+                else:                    # кирпич — разлетающиеся обломки
+                    self.particles += particle.brick_debris(bx, by)
                 self.sounds.play_hit()
                 if not piercing:
                     b.alive = False
@@ -635,24 +744,46 @@ class Game:
         # Взрывы гаснут по истечении анимации, бонусы — по таймауту
         for ex in self.explosions:
             ex.update(now)
+        for pt in self.particles:
+            pt.update(now)
         for p in self.powerups:
             p.update(now)
 
-        # Убираем уничтоженных врагов, погасшие пули, взрывы и бонусы
+        # Убираем уничтоженных врагов, погасшие пули, взрывы, частицы и бонусы
         self.enemies = [e for e in self.enemies if e.alive]
         self.bullets = [b for b in self.bullets if b.alive]
         self.explosions = [ex for ex in self.explosions if ex.alive]
+        self.particles = [pt for pt in self.particles if pt.alive]
         self.powerups = [p for p in self.powerups if p.alive]
 
         # Тревога «враг у базы»: мигание + периодический сигнал
         self._update_base_alert(now)
 
-        # Уровень зачищен: все враги уничтожены, порталов нет и больше не появятся
-        if self.enemies_to_spawn == 0 and not self.enemies and not self.spawns_pending:
+        # Уровень зачищен: все враги уничтожены, порталов нет и больше не появятся.
+        # На финальном уровне нужно ещё и повергнуть босса (он должен появиться).
+        boss_ok = (not self.is_boss_level
+                   or (self.boss is not None and not self.boss.alive))
+        if (self.enemies_to_spawn == 0 and not self.enemies
+                and not self.spawns_pending and boss_ok):
             self.level_cleared()
 
     def _bullet_vs_tanks(self, b, now):
         if b.owner == "player":
+            if self.boss and self.boss.alive and b.rect.colliderect(self.boss.rect):
+                b.alive = False
+                if self.boss.damage():               # босс повержен — финал уровня
+                    self.score += self.boss.score
+                    self.boss.alive = False
+                    self.spawn_explosion(self.boss.rect.center, big=True)
+                    self.spawn_explosion(self.boss.rect.topleft, big=True)
+                    self.spawn_explosion(self.boss.rect.bottomright, big=True)
+                    self.sounds.play_explosion()
+                    self._shake(c.SHAKE_BIG, int(c.SHAKE_MS * 2))
+                    self._flash()
+                else:
+                    self.spawn_explosion(b.rect.center, big=False)
+                    self.sounds.play_hit()
+                return
             for e in self.enemies:
                 if e.alive and b.rect.colliderect(e.rect):
                     b.alive = False
@@ -729,6 +860,10 @@ class Game:
             self.draw_levelstart()
             pygame.display.flip()
             return
+        if self.state == STATE_LEVELSELECT:
+            self.draw_levelselect()
+            pygame.display.flip()
+            return
 
         # Сцену и оверлеи рисуем на холст, затем блиттим на экран со сдвигом-тряской
         now = pygame.time.get_ticks()
@@ -789,10 +924,19 @@ class Game:
                 pygame.draw.rect(self.screen, c.FREEZE_TINT, e.rect, 1, border_radius=5)
             if e.bonus and (now // 250) % 2 == 0:    # носитель бонуса мигает рамкой
                 pygame.draw.rect(self.screen, c.STAR_COLOR, e.rect, 2, border_radius=5)
+        if self.boss and self.boss.alive:            # босс поверх обычных врагов
+            self.boss.draw(self.screen)
+            if frozen:
+                ice = pygame.Surface((self.boss.rect.width, self.boss.rect.height),
+                                     pygame.SRCALPHA)
+                ice.fill((*c.FREEZE_TINT, 90))
+                self.screen.blit(ice, self.boss.rect.topleft)
         for b in self.bullets:
             b.draw(self.screen)
         for ex in self.explosions:
             ex.draw(self.screen)
+        for pt in self.particles:
+            pt.draw(self.screen)
         self.level.draw_forest(self.screen)         # листва поверх танков — засады
         pygame.draw.rect(self.screen, c.FIELD_BORDER, (0, 0, c.FIELD_W, c.FIELD_H), 2)
         self.draw_hud()
@@ -929,7 +1073,8 @@ class Game:
 
         # --- Враги (осталось за уровень) ---
         remaining = (self.enemies_to_spawn + len(self.enemies)
-                     + len(self.spawns_pending))
+                     + len(self.spawns_pending)
+                     + (1 if self.boss and self.boss.alive else 0))
         lbl2 = self.small.render("ВРАГИ", True, c.HUD_TEXT)
         self.screen.blit(lbl2, (x + 14, 152))
         num2 = self.font.render(str(remaining), True, (70, 30, 30))
@@ -1226,6 +1371,8 @@ class Game:
                     self.handle_settings_event(e)
                 elif self.state == STATE_LEVELSTART:
                     self.handle_levelstart_event(e)
+                elif self.state == STATE_LEVELSELECT:
+                    self.handle_levelselect_event(e)
                 elif self.state == STATE_NAME_ENTRY:
                     self.handle_name_entry_event(e)
                 elif self.state == STATE_SCORES:
@@ -1253,6 +1400,8 @@ class Game:
             self.start_new_game()
         elif action == "load":
             self._load_game()
+        elif action == "levelselect":
+            self.open_levelselect()
         elif action == "settings":
             self.open_settings()
         elif action == "scores":
