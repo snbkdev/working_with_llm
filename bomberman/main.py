@@ -25,11 +25,14 @@ from src.entities.explosion import detonate_chain
 from src.entities.player import Player
 from src.entities.powerup import PowerUp, pickup, render_badge
 from src.sound import Synth
-from src.world.arena import Arena
+from src.world.arena import Arena, spiral_order
 
 # Строки главного меню
 ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_SOUND, ROW_QUIT = range(6)
 MENU_ROWS = (ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_SOUND, ROW_QUIT)
+
+# Порядок падения стен при sudden death — спираль по внутренним клеткам
+SD_SPIRAL = spiral_order(1, 1, c.COLS - 2, c.ROWS - 2)
 
 
 def make_bomb_icon():
@@ -91,6 +94,10 @@ def main():
         "roster": [],                       # [(индекс, подпись)] участников матча
         "round_no": 1,
         "intro_until": 0,
+        "sd_active": False,                 # sudden death в процессе
+        "sd_index": 0,                      # сколько стен уже упало
+        "sd_next": 0,                       # когда падает следующая
+        "sd_drops": {},                     # клетка → время падения (для вспышки)
     }
     arena = Arena(seed=st["seed"])
     fighters = []
@@ -152,6 +159,10 @@ def main():
         st["round_start"] = pygame.time.get_ticks()
         st["over_at"] = None
         st["winner"] = None
+        st["sd_active"] = False
+        st["sd_index"] = 0
+        st["sd_next"] = 0
+        st["sd_drops"] = {}
 
     def begin_intro(bump_seed):
         """Готовит раунд и включает заставку «Раунд N»."""
@@ -338,6 +349,26 @@ def main():
                 f.kill(now)
                 snd.play("death")
 
+        # Sudden death: по таймеру арена схлопывается стенами по спирали
+        if now - st["round_start"] >= c.SD_START_MS:
+            if not st["sd_active"]:
+                st["sd_active"] = True
+                st["sd_next"] = now
+                snd.play("siren")
+            while now >= st["sd_next"] and st["sd_index"] < len(SD_SPIRAL):
+                cell = SD_SPIRAL[st["sd_index"]]
+                st["sd_index"] += 1
+                st["sd_next"] += c.SD_INTERVAL_MS
+                if arena.drop_wall(*cell):
+                    st["sd_drops"][cell] = now
+                    snd.play("drop")
+                    for f in fighters:                     # раздавить попавших
+                        if f.alive and f.cell == cell:
+                            f.kill(now)
+                            snd.play("death")
+                    bombs = [b for b in bombs if b.cell != cell]
+                    powerups = [p for p in powerups if p.cell != cell]
+
         # Итог раунда
         if st["over_at"] is None:
             alive = [f for f in fighters if f.alive]
@@ -361,6 +392,15 @@ def main():
         # --- Отрисовка ---
         screen.fill(c.BG_COLOR)
         arena.draw(screen)
+        for cell, t in list(st["sd_drops"].items()):        # вспышки-удары стен
+            age = now - t
+            if age > c.SD_IMPACT_MS:
+                del st["sd_drops"][cell]
+                continue
+            k = 1 - age / c.SD_IMPACT_MS
+            flash = pygame.Surface((c.TILE, c.TILE), pygame.SRCALPHA)
+            flash.fill((*c.SD_IMPACT, int(170 * k)))
+            screen.blit(flash, (cell[0] * c.TILE, cell[1] * c.TILE))
         for p in powerups:
             p.draw(screen, now)
         for b in bombs:
@@ -371,6 +411,7 @@ def main():
             if f.alive or (f.dead_at is not None and now - f.dead_at < c.RESPAWN_MS):
                 f.draw(screen, now)
 
+        _draw_sudden_death(screen, fonts, st, now)
         draw_hud(screen, fonts, humans, fighters, now, st)
         if st["over_at"] is not None:
             _draw_banner(screen, fonts, st, humans, fighters)
@@ -468,6 +509,24 @@ def draw_menu(screen, fonts, st, cap, sound_on, now):
         surf = fonts["tiny"].render(ln, True, (190, 194, 206))
         screen.blit(surf, (c.WIDTH // 2 - surf.get_width() // 2, y))
         y += 20
+
+
+def _draw_sudden_death(screen, fonts, st, now):
+    """Предупреждение перед схлопыванием и мигающая надпись во время него."""
+    elapsed = now - st["round_start"]
+    if st["sd_active"]:
+        if (now // 350) % 2 == 0:
+            txt = fonts["font"].render("SUDDEN  DEATH", True, (245, 90, 80))
+            bg = pygame.Surface((txt.get_width() + 20, txt.get_height() + 8),
+                                pygame.SRCALPHA)
+            bg.fill((0, 0, 0, 150))
+            x = c.FIELD_W // 2 - bg.get_width() // 2
+            screen.blit(bg, (x, 6))
+            screen.blit(txt, (x + 10, 10))
+    elif elapsed >= c.SD_START_MS - c.SD_WARN_MS:
+        left = (c.SD_START_MS - elapsed) // 1000 + 1
+        txt = fonts["small"].render(f"Стены рушатся через {left}…", True, (245, 170, 90))
+        screen.blit(txt, (c.FIELD_W // 2 - txt.get_width() // 2, 8))
 
 
 def draw_intro(screen, fonts, st):

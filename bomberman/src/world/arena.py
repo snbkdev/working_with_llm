@@ -21,6 +21,31 @@ def is_border_or_pillar(col, row):
     return col % 2 == 0 and row % 2 == 0
 
 
+def spiral_order(c0, r0, c1, r1):
+    """Клетки прямоугольника [c0..c1]×[r0..r1] по спирали снаружи внутрь.
+
+    Порядок обхода — по часовой стрелке, начиная с левого-верхнего угла внешнего
+    кольца. Используется для «схлопывания» арены в режиме sudden death.
+    """
+    cells = []
+    while c0 <= c1 and r0 <= r1:
+        for col in range(c0, c1 + 1):
+            cells.append((col, r0))
+        for row in range(r0 + 1, r1 + 1):
+            cells.append((c1, row))
+        if r0 < r1:
+            for col in range(c1 - 1, c0 - 1, -1):
+                cells.append((col, r1))
+        if c0 < c1:
+            for row in range(r1 - 1, r0, -1):
+                cells.append((c0, row))
+        c0 += 1
+        r0 += 1
+        c1 -= 1
+        r1 -= 1
+    return cells
+
+
 def safe_cells():
     """Клетки, которые всегда остаются полом: углы спавна + по два соседа.
 
@@ -100,6 +125,14 @@ class Arena:
         """Разрушает ящик, если он там есть. Возвращает True при разрушении."""
         if self.is_block(col, row):
             self.grid[row][col] = c.FLOOR
+            return True
+        return False
+
+    def drop_wall(self, col, row):
+        """Роняет несокрушимую стену на клетку (sudden death). True, если новая."""
+        self.hidden.pop((col, row), None)
+        if self.grid[row][col] != c.WALL:
+            self.grid[row][col] = c.WALL
             return True
         return False
 

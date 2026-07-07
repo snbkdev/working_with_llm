@@ -84,6 +84,12 @@ class Synth:
             return self._make(jingle, 0.5, 0.5)
         if name == "blip":            # клик в меню
             return self._make(lambda t: 1.0 if math.sin(80 * t) > 0 else -1.0, 0.04, 0.25)
+        if name == "siren":           # тревога начала sudden death
+            return self._make(lambda t: math.sin(two_pi * (300 + 200 *
+                              (0.5 + 0.5 * math.sin(two_pi * 4 * t))) * t), 0.6, 0.45)
+        if name == "drop":            # глухой удар упавшей стены
+            return self._make(lambda t: (math.sin(two_pi * 90 * t)
+                              + random.uniform(-1, 1) * 0.3) * (1 - t), 0.09, 0.4)
         return self._make(tone(440), 0.1, 0.3)
 
     def play(self, name):

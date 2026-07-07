@@ -2,7 +2,33 @@
 
 from src import config as c
 from src.world import arena as arena_mod
-from src.world.arena import Arena
+from src.world.arena import Arena, spiral_order
+
+
+def test_spiral_covers_all_cells_once():
+    cells = spiral_order(1, 1, c.COLS - 2, c.ROWS - 2)
+    expected = (c.COLS - 2) * (c.ROWS - 2)
+    assert len(cells) == expected
+    assert len(set(cells)) == expected                 # без повторов
+    # все внутри внутреннего прямоугольника
+    assert all(1 <= x <= c.COLS - 2 and 1 <= y <= c.ROWS - 2 for x, y in cells)
+
+
+def test_spiral_starts_outer_ends_inside():
+    cells = spiral_order(1, 1, c.COLS - 2, c.ROWS - 2)
+    assert cells[0] == (1, 1)                           # с внешнего угла
+    # заканчивается глубоко внутри (не на внешнем кольце)
+    lx, ly = cells[-1]
+    assert 3 <= lx <= c.COLS - 4 and 3 <= ly <= c.ROWS - 4
+
+
+def test_drop_wall_turns_cell_to_wall():
+    a = Arena(seed=1, density=0.0)
+    # найдём проходимую клетку и уроним стену
+    assert a.is_floor(1, 1)
+    assert a.drop_wall(1, 1) is True
+    assert a.is_wall(1, 1)
+    assert a.drop_wall(1, 1) is False                   # уже стена
 
 
 def test_grid_dimensions():
