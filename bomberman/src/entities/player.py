@@ -95,33 +95,50 @@ class Player:
         x, y, s = int(self.x), int(self.y), self.size
         cx = x + s // 2
         out = c.PLAYER_OUTLINE
-        # Тень под ногами
+        col = self.color
+        dark = tuple(int(v * 0.55) for v in col)     # тень корпуса/шлема
+        light = tuple(min(255, int(v * 1.15)) for v in col)
+
+        # Тень на полу
         shadow = pygame.Surface((s, s // 3), pygame.SRCALPHA)
         shadow.fill((0, 0, 0, 70))
-        screen.blit(shadow, (x, y + s - s // 3 + 2))
+        screen.blit(shadow, (x, y + s - s // 4))
 
-        # Туловище (капелька-комбинезон)
-        body = pygame.Rect(x + 3, y + s // 2 - 2, s - 6, s // 2)
-        pygame.draw.rect(screen, self.color, body, border_radius=6)
-        pygame.draw.rect(screen, out, body, 2, border_radius=6)
         # Ножки
-        pygame.draw.rect(screen, out, (x + 6, y + s - 6, 6, 5), border_radius=2)
-        pygame.draw.rect(screen, out, (x + s - 12, y + s - 6, 6, 5), border_radius=2)
+        pygame.draw.ellipse(screen, out, (x + 5, y + s - 7, 8, 7))
+        pygame.draw.ellipse(screen, out, (x + s - 13, y + s - 7, 8, 7))
 
-        # Голова-шлем
-        head_r = s // 3
-        head_c = (cx, y + head_r + 2)
-        pygame.draw.circle(screen, self.color, head_c, head_r)
-        pygame.draw.circle(screen, out, head_c, head_r, 2)
-        # Козырёк шлема
-        pygame.draw.arc(screen, out,
-                        (cx - head_r, y + 2, head_r * 2, head_r * 2),
-                        0.2, 2.94, 2)
+        # Туловище (пухлый комбинезон)
+        body = pygame.Rect(x + 5, y + s // 2 + 1, s - 10, s // 2 - 4)
+        pygame.draw.rect(screen, col, body, border_radius=7)
+        pygame.draw.rect(screen, out, body, 2, border_radius=7)
+        # Ремень + пряжка
+        belt_y = body.y + body.height // 2
+        pygame.draw.line(screen, dark, (body.x + 2, belt_y), (body.right - 2, belt_y), 3)
+        pygame.draw.rect(screen, c.ACCENT, (cx - 3, belt_y - 2, 6, 4))
 
-        # Глаза смотрят по направлению движения
+        # Голова-шлем: круглый купол с бликом
+        head_r = s // 2 - 1
+        hcx, hcy = cx, y + head_r
+        pygame.draw.circle(screen, col, (hcx, hcy), head_r)
+        pygame.draw.circle(screen, light, (hcx - head_r // 3, hcy - head_r // 3),
+                           max(2, head_r // 4))
+        pygame.draw.circle(screen, out, (hcx, hcy), head_r, 2)
+
+        # Антенна с «камушком» на макушке
+        pygame.draw.line(screen, out, (hcx, hcy - head_r), (hcx, hcy - head_r - 5), 2)
+        pygame.draw.circle(screen, c.ACCENT, (hcx, hcy - head_r - 6), 3)
+        pygame.draw.circle(screen, out, (hcx, hcy - head_r - 6), 3, 1)
+
+        # Тёмный козырёк-полоса поверх глаз (уже диаметра — не выходит за купол)
+        vw, vh = int(head_r * 1.6), max(9, head_r)
+        visor = pygame.Rect(hcx - vw // 2, hcy - 2, vw, vh)
+        pygame.draw.rect(screen, dark, visor, border_radius=vh // 2)
+
+        # Большие глаза на козырьке, зрачки смотрят по направлению движения
         dx, dy = self.dir
-        ex, ey = head_c[0] + dx * 3, head_c[1] + dy * 2
-        for off in (-4, 4):
-            pygame.draw.circle(screen, (250, 250, 250), (ex + off, ey), 3)
+        eye_y = visor.y + vh // 2
+        for off in (-5, 6):
+            pygame.draw.ellipse(screen, (250, 250, 250), (hcx + off - 4, eye_y - 4, 8, 9))
             pygame.draw.circle(screen, (30, 40, 90),
-                               (ex + off + dx, ey + dy), 1)
+                               (hcx + off + dx * 2, eye_y + dy * 2), 2)
