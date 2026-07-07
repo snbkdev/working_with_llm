@@ -113,6 +113,18 @@ DIFF_PARAMS = {
 DEFAULT_BOTS = 3             # ботов в превью по умолчанию
 DEFAULT_DIFFICULTY = DIFF_MEDIUM
 
+# --- Режимы игры ---
+MODE_1P_AI = 0               # 1 игрок против ботов
+MODE_2P_DUEL = 1            # 2 игрока друг против друга (без ботов)
+MODE_2P_AI = 2             # 2 игрока против ботов
+MODE_NAMES = {
+    MODE_1P_AI: "1 игрок против ИИ",
+    MODE_2P_DUEL: "2 игрока: дуэль",
+    MODE_2P_AI: "2 игрока против ИИ",
+}
+MODE_HUMANS = {MODE_1P_AI: 1, MODE_2P_DUEL: 2, MODE_2P_AI: 2}
+MAX_FIGHTERS = 4            # всего углов-спавнов
+
 # --- Игрок ---
 PLAYER_SIZE = 30                # габарит < TILE, чтобы проходить в проёмы
 PLAYER_SPEED = 2                # пикселей/кадр (база; ускоряется бонусом)

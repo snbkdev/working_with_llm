@@ -1,28 +1,34 @@
 """Bomberman на pygame — точка входа.
 
-Пока это временное превью (Этапы 1–4): арена, игрок, бомбы с крестообразным
-взрывом, цепные детонации, бонусы/проклятия и ИИ-боты в режиме «последний
-выживший». По мере готовности `src/game.py` заменит предпросмотр полноценным
-игровым циклом.
+Превью Этапов 1–5: арена, бомбы с крестообразным взрывом, цепные детонации,
+бонусы/проклятия, ИИ-боты и **режимы игры** с выбором в меню:
+  • 1 игрок против ИИ,
+  • 2 игрока: дуэль (друг против друга),
+  • 2 игрока против ИИ.
 
 Запуск (из каталога bomberman):
     python main.py
 
-    Движение — WASD или стрелки (работает при любой раскладке: RUS/ENG/…)
-    Пробел — бомба, E — детонатор (с бонусом)
-    1/2/3 — сложность ботов, [ и ] — число ботов, R — заново, Esc — выход
+Меню: ↑/↓ — режим, ←/→ — число ботов, 1/2/3 — сложность, Enter — старт, Esc — выход.
+Игра: P1 — WASD + Пробел (E детонатор); P2 — стрелки + правый Ctrl (правый Shift
+детонатор). R — новый раунд, Esc — в меню.
 """
 
 import pygame
 
 from src import config as c
-from src.controls import Input, SCAN_E, SCAN_R
+from src.controls import (Input, SCHEME_ARROWS, SCHEME_BOTH, SCHEME_WASD,
+                          SCAN_E, SCAN_R)
 from src.entities.bomb import Bomb, can_place
 from src.entities.bot import Bot
 from src.entities.explosion import detonate_chain
 from src.entities.player import Player
 from src.entities.powerup import PowerUp, pickup, render_badge
 from src.world.arena import Arena
+
+# Строки главного меню
+ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_QUIT = range(5)
+MENU_ROWS = (ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_QUIT)
 
 
 def make_bomb_icon():
@@ -40,56 +46,100 @@ def make_bomb_icon():
     return icon
 
 
+class Human:
+    """Живой игрок: спрайт + своя схема управления и клавиши действий."""
+
+    def __init__(self, player, scheme, bomb_key, deton_key=None, deton_scan=None):
+        self.player = player
+        self.input = Input(scheme)
+        self.bomb_key = bomb_key
+        self.deton_key = deton_key          # клавиша детонатора (pygame key) или None
+        self.deton_scan = deton_scan        # или скан-код детонатора
+        self.last_autobomb = 0
+
+    def wants_detonate(self, e):
+        return ((self.deton_key is not None and e.key == self.deton_key)
+                or (self.deton_scan is not None and e.scancode == self.deton_scan))
+
+
 def main():
     pygame.init()
     screen = pygame.display.set_mode((c.WIDTH, c.HEIGHT))
     pygame.display.set_icon(make_bomb_icon())
-    pygame.display.set_caption("Bomberman — превью (Этапы 1–4)")
-    font = pygame.font.SysFont("Helvetica", 15, bold=True)
-    small = pygame.font.SysFont("Helvetica", 13)
-    tiny = pygame.font.SysFont("Helvetica", 12, bold=True)
-    big = pygame.font.SysFont("Helvetica", 34, bold=True)
+    pygame.display.set_caption("Bomberman")
+    fonts = {
+        "big": pygame.font.SysFont("Helvetica", 34, bold=True),
+        "font": pygame.font.SysFont("Helvetica", 15, bold=True),
+        "small": pygame.font.SysFont("Helvetica", 13),
+        "tiny": pygame.font.SysFont("Helvetica", 12, bold=True),
+    }
     clock = pygame.time.Clock()
 
-    state = {
-        "seed": 0,
+    st = {
+        "scene": "menu",
+        "menu_row": ROW_PLAY,
+        "mode": c.MODE_1P_AI,
         "bots": c.DEFAULT_BOTS,
         "difficulty": c.DEFAULT_DIFFICULTY,
+        "seed": 0,
         "round_start": 0,
-        "over_at": None,          # когда раунд завершился (для паузы)
+        "over_at": None,
         "winner": None,
-        "wins": 0,                # победы игрока за сессию
+        "scores": {},                       # индекс бойца → число побед
     }
-    arena = Arena(seed=state["seed"])
-    player = Player(*arena.spawns[0], index=0)
-    controls = Input()
-    fighters = [player]
-    bombs = []
-    explosions = []
-    powerups = []
-    last_autobomb = 0
+    arena = Arena(seed=st["seed"])
+    fighters = []
+    humans = []
+    bombs, explosions, powerups = [], [], []
+
+    def bot_cap():
+        """Максимум ботов для текущего режима (всего бойцов ≤ 4)."""
+        if st["mode"] == c.MODE_2P_DUEL:
+            return 0
+        return c.MAX_FIGHTERS - c.MODE_HUMANS[st["mode"]]
 
     def spawn_round():
-        """Готовит новый раунд: раскладка, игрок и боты по углам, всё чисто."""
-        arena.generate(state["seed"])
-        player.respawn(*arena.spawns[0])
-        fighters[:] = [player]
-        for i in range(min(state["bots"], len(arena.spawns) - 1)):
-            col, row = arena.spawns[i + 1]
-            fighters.append(Bot(col, row, index=i + 1,
-                                difficulty=state["difficulty"],
-                                seed=state["seed"] * 10 + i))
-        controls.clear()
+        nonlocal fighters, humans
+        arena.generate(st["seed"])
+        fighters = []
+        humans = []
+        n_humans = c.MODE_HUMANS[st["mode"]]
+        spawns = arena.spawns
+
+        # Живые игроки
+        p1 = Player(*spawns[0], index=0)
+        if n_humans == 1:
+            humans.append(Human(p1, SCHEME_BOTH, pygame.K_SPACE, deton_scan=SCAN_E))
+        else:
+            humans.append(Human(p1, SCHEME_WASD, pygame.K_SPACE, deton_scan=SCAN_E))
+            p2 = Player(*spawns[1], index=1)
+            humans.append(Human(p2, SCHEME_ARROWS, pygame.K_RCTRL,
+                                deton_key=pygame.K_RSHIFT))
+            fighters.append(p1)
+            fighters.append(p2)
+        if n_humans == 1:
+            fighters.append(p1)
+
+        # Боты занимают оставшиеся углы
+        n_bots = min(st["bots"], bot_cap(), len(spawns) - n_humans)
+        for i in range(n_bots):
+            col, row = spawns[n_humans + i]
+            fighters.append(Bot(col, row, index=n_humans + i,
+                                difficulty=st["difficulty"],
+                                seed=st["seed"] * 10 + i))
+
+        for h in humans:
+            h.input.clear()
         bombs.clear()
         explosions.clear()
         powerups.clear()
-        state["round_start"] = pygame.time.get_ticks()
-        state["over_at"] = None
-        state["winner"] = None
+        st["round_start"] = pygame.time.get_ticks()
+        st["over_at"] = None
+        st["winner"] = None
 
     def new_round(next_seed=True):
         if next_seed:
-            state["seed"] += 1
+            st["seed"] += 1
         spawn_round()
 
     def place_bomb(fighter, now):
@@ -101,48 +151,82 @@ def main():
             bombs.append(Bomb(*cell, owner=fighter.index, fire=fighter.flame,
                               now=now, remote=remote))
 
-    spawn_round()
-
     running = True
     while running:
         now = pygame.time.get_ticks()
+
+        if st["scene"] == "menu":
+            def start_game():
+                st["scores"] = {}
+                new_round(next_seed=False)
+                st["scene"] = "play"
+
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    running = False
+                elif e.type == pygame.KEYDOWN:
+                    row = st["menu_row"]
+                    if e.key == pygame.K_ESCAPE:
+                        running = False
+                    elif e.key in (pygame.K_UP, pygame.K_DOWN):
+                        step = -1 if e.key == pygame.K_UP else 1
+                        st["menu_row"] = (row + step) % len(MENU_ROWS)
+                    elif e.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                        d = -1 if e.key == pygame.K_LEFT else 1
+                        if row == ROW_MODE:
+                            st["mode"] = (st["mode"] + d) % len(c.MODE_NAMES)
+                            st["bots"] = min(st["bots"], max(1, bot_cap()))
+                        elif row == ROW_BOTS and bot_cap():
+                            st["bots"] = max(1, min(bot_cap(), st["bots"] + d))
+                        elif row == ROW_DIFF:
+                            st["difficulty"] = (st["difficulty"] + d) % len(c.DIFF_NAMES)
+                    elif e.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                        if row == ROW_QUIT:
+                            running = False
+                        else:
+                            start_game()
+                    elif e.key in (pygame.K_1, pygame.K_2, pygame.K_3):
+                        st["difficulty"] = {pygame.K_1: c.DIFF_EASY,
+                                            pygame.K_2: c.DIFF_MEDIUM,
+                                            pygame.K_3: c.DIFF_HARD}[e.key]
+            draw_menu(screen, fonts, st, bot_cap(), now)
+            pygame.display.flip()
+            clock.tick(c.FPS)
+            continue
+
+        # --- Сцена игры ---
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 running = False
             elif e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
-                running = False
-            elif (e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE
-                  and player.alive):
-                place_bomb(player, now)
-            elif (e.type == pygame.KEYDOWN and e.scancode == SCAN_E
-                  and player.alive and player.detonator):
-                for b in bombs:
-                    if b.owner == player.index and b.remote:
-                        b.detonate()
+                st["scene"] = "menu"
             elif e.type == pygame.KEYDOWN and e.scancode == SCAN_R:
                 new_round()
-            elif e.type == pygame.KEYDOWN and e.key in (pygame.K_1, pygame.K_2, pygame.K_3):
-                state["difficulty"] = {pygame.K_1: c.DIFF_EASY,
-                                       pygame.K_2: c.DIFF_MEDIUM,
-                                       pygame.K_3: c.DIFF_HARD}[e.key]
-                new_round(next_seed=False)
-            elif e.type == pygame.KEYDOWN and e.key in (pygame.K_LEFTBRACKET,
-                                                        pygame.K_RIGHTBRACKET):
-                d = -1 if e.key == pygame.K_LEFTBRACKET else 1
-                state["bots"] = max(1, min(len(arena.spawns) - 1, state["bots"] + d))
-                new_round(next_seed=False)
-            controls.handle(e)
+            elif e.type == pygame.KEYDOWN:
+                for h in humans:
+                    if e.key == h.bomb_key and h.player.alive:
+                        place_bomb(h.player, now)
+                    if h.wants_detonate(e) and h.player.alive and h.player.detonator:
+                        for b in bombs:
+                            if b.owner == h.player.index and b.remote:
+                                b.detonate()
+            for h in humans:
+                h.input.handle(e)
 
-        # --- Обновление бойцов ---
-        player.update_curse(now)
-        if player.alive:
-            move_dir = player.input_dir(controls.direction())
-            _try_kick(player, arena, bombs, move_dir)
-            player.try_move(arena, move_dir, [b.cell for b in bombs])
-            if player.auto_bomb and now - last_autobomb >= c.AUTOBOMB_MS:
-                place_bomb(player, now)
-                last_autobomb = now
+        # --- Обновление живых игроков ---
+        for h in humans:
+            p = h.player
+            if not p.alive:
+                continue
+            p.update_curse(now)
+            move_dir = p.input_dir(h.input.direction())
+            _try_kick(p, arena, bombs, move_dir)
+            p.try_move(arena, move_dir, [b.cell for b in bombs])
+            if p.auto_bomb and now - h.last_autobomb >= c.AUTOBOMB_MS:
+                place_bomb(p, now)
+                h.last_autobomb = now
 
+        # --- Обновление ботов ---
         pu_cells = {p.cell for p in powerups}
         for f in fighters:
             if isinstance(f, Bot) and f.alive:
@@ -154,18 +238,14 @@ def main():
                 if want:
                     place_bomb(f, now)
 
-        # Скольжение пиннутых бомб (стоп у препятствий и у бойцов)
         occupied = {f.cell for f in fighters if f.alive}
         for b in bombs:
             b.update_motion(arena, bombs, occupied)
-
-        # Фитили + цепные детонации
         for b in bombs:
             b.update(now)
         fresh = detonate_chain(arena, bombs, explosions, now)
         bombs = [b for b in bombs if not b.exploded]
 
-        # Бонусы из разрушенных ящиков
         for ex in fresh:
             for cell in ex.destroyed:
                 kind = arena.pop_hidden(*cell)
@@ -176,7 +256,6 @@ def main():
             ex.update(now)
         explosions = [ex for ex in explosions if not ex.done]
 
-        # Подбор бонусов всеми живыми бойцами
         for f in fighters:
             if f.alive:
                 got = pickup(powerups, f.cell)
@@ -186,20 +265,22 @@ def main():
             p.taken or any(ex.born > p.born and ex.contains(p.cell)
                            for ex in explosions))]
 
-        # Гибель в пламени
         for f in fighters:
             if f.alive and f.in_flame(explosions):
                 f.kill(now)
 
-        # Итог раунда: остался один (или погиб игрок) → пауза → новый раунд
-        if state["over_at"] is None:
+        # Итог раунда
+        if st["over_at"] is None:
             alive = [f for f in fighters if f.alive]
-            if not player.alive or len(alive) <= 1:
-                state["over_at"] = now
-                state["winner"] = alive[0] if len(alive) == 1 else None
-                if state["winner"] is player:
-                    state["wins"] += 1
-        elif now - state["over_at"] >= max(c.RESPAWN_MS, 1400):
+            humans_alive = [h.player for h in humans if h.player.alive]
+            done = len(alive) <= 1 or (humans and not humans_alive)
+            if done:
+                st["over_at"] = now
+                st["winner"] = alive[0] if len(alive) == 1 else None
+                if st["winner"] is not None:
+                    idx = st["winner"].index
+                    st["scores"][idx] = st["scores"].get(idx, 0) + 1
+        elif now - st["over_at"] >= max(c.RESPAWN_MS, 1600):
             new_round()
 
         # --- Отрисовка ---
@@ -215,9 +296,9 @@ def main():
             if f.alive or (f.dead_at is not None and now - f.dead_at < c.RESPAWN_MS):
                 f.draw(screen, now)
 
-        draw_hud(screen, font, small, tiny, player, fighters, bombs, now, state)
-        if state["over_at"] is not None:
-            _draw_banner(screen, big, small, state, player)
+        draw_hud(screen, fonts, humans, fighters, now, st)
+        if st["over_at"] is not None:
+            _draw_banner(screen, fonts, st, humans, fighters)
 
         pygame.display.flip()
         clock.tick(c.FPS)
@@ -240,71 +321,160 @@ def _try_kick(fighter, arena, bombs, move_dir):
             break
 
 
-def draw_hud(screen, font, small, tiny, player, fighters, bombs, now, state):
-    """Правая панель: таймер, статы игрока, боты/сложность, подсказки."""
-    x = c.FIELD_W
-    pygame.draw.rect(screen, c.HUD_BG, (x, 0, c.HUD_W, c.HEIGHT))
-    screen.blit(font.render("BOMBERMAN", True, c.HUD_TEXT), (x + 14, 12))
+def _draw_menu_bomb(screen, cx, cy, r, now):
+    """Крупная пульсирующая бомба-логотип для меню."""
+    import math
+    r = int(r * (1 + 0.05 * math.sin(now * 0.004)))
+    pygame.draw.circle(screen, (30, 32, 40), (cx, cy), r)
+    pygame.draw.circle(screen, (12, 12, 16), (cx, cy), r, 3)
+    pygame.draw.circle(screen, (120, 128, 150), (cx - r // 3, cy - r // 3), max(3, r // 4))
+    pygame.draw.rect(screen, (90, 92, 100), (cx - 5, cy - r - 6, 10, 8), border_radius=2)
+    tipx, tipy = cx + 9, cy - r - 16
+    pygame.draw.lines(screen, (200, 170, 90), False,
+                      [(cx + 2, cy - r - 4), (cx + 11, cy - r - 9), (tipx, tipy)], 3)
+    if (now // 180) % 2 == 0:
+        pygame.draw.circle(screen, (250, 220, 90), (tipx, tipy), 6)
+        pygame.draw.circle(screen, (250, 140, 40), (tipx, tipy), 3)
 
-    secs = max(0, (now - state["round_start"]) // 1000)
-    alive_bots = sum(1 for f in fighters if getattr(f, "is_bot", False) and f.alive)
-    screen.blit(small.render(f"Раунд {secs // 60}:{secs % 60:02d}", True, c.ACCENT),
-                (x + 14, 34))
-    screen.blit(tiny.render(f"Боты живы: {alive_bots}   Победы: {state['wins']}",
-                            True, c.HUD_TEXT), (x + 14, 52))
 
-    rows = [
-        (c.POW_BOMB, f"x{player.max_bombs}"),
-        (c.POW_FIRE, f"x{player.fire}"),
-        (c.POW_SPEED, f"x{player.speed_level + 1}"),
-        (c.POW_KICK, "есть" if player.kick else "—"),
-        (c.POW_DETON, "есть" if player.detonator else "—"),
+def draw_menu(screen, fonts, st, cap, now):
+    """Главное меню при запуске: логотип и строки-пункты."""
+    screen.fill(c.BG_COLOR)
+    # Лёгкая «шахматка» пола на фоне
+    for row in range(0, c.HEIGHT, c.TILE):
+        for col in range(0, c.WIDTH, c.TILE):
+            shade = c.FLOOR_A if (col // c.TILE + row // c.TILE) % 2 == 0 else c.FLOOR_B
+            shade = tuple(int(v * 0.35) for v in shade)
+            pygame.draw.rect(screen, shade, (col, row, c.TILE, c.TILE))
+
+    _draw_menu_bomb(screen, c.WIDTH // 2 - 150, 70, 26, now)
+    title = fonts["big"].render("BOMBERMAN", True, c.ACCENT)
+    screen.blit(title, (c.WIDTH // 2 - title.get_width() // 2 + 20, 52))
+    sub = fonts["small"].render("Аренный боевик в духе Atomic Bomberman", True, c.WHITE)
+    screen.blit(sub, (c.WIDTH // 2 - sub.get_width() // 2, 96))
+
+    bots_val = f"{min(st['bots'], cap)}" if cap else "—"
+    rows = {
+        ROW_PLAY: ("Играть", None),
+        ROW_MODE: ("Режим", c.MODE_NAMES[st["mode"]]),
+        ROW_BOTS: ("Ботов", bots_val),
+        ROW_DIFF: ("Сложность", c.DIFF_NAMES[st["difficulty"]]),
+        ROW_QUIT: ("Выход", None),
+    }
+    y = 138
+    for r in MENU_ROWS:
+        label, value = rows[r]
+        sel = r == st["menu_row"]
+        box = pygame.Rect(c.WIDTH // 2 - 180, y, 360, 38)
+        pygame.draw.rect(screen, (46, 50, 64) if sel else (26, 28, 36), box, border_radius=8)
+        if sel:
+            pygame.draw.rect(screen, c.ACCENT, box, 2, border_radius=8)
+            pygame.draw.circle(screen, c.ACCENT, (box.x + 16, box.centery), 4)
+        col = c.ACCENT if sel else c.HUD_TEXT
+        screen.blit(fonts["font"].render(label, True, col), (box.x + 30, box.y + 10))
+        if value is not None:
+            vs = fonts["font"].render(value, True, c.WHITE if sel else (170, 174, 186))
+            vx = box.right - vs.get_width() - 30
+            screen.blit(vs, (vx, box.y + 10))
+            if sel:  # стрелки выбора ‹ ›
+                arr = fonts["font"].render("<", True, c.ACCENT)
+                screen.blit(arr, (vx - 20, box.y + 10))
+                screen.blit(fonts["font"].render(">", True, c.ACCENT),
+                            (box.right - 22, box.y + 10))
+        y += 46
+
+    lines = [
+        "↑/↓ — пункт    ←/→ — значение    Enter — выбрать    Esc — выход",
+        "P1: WASD + Пробел (E — детонатор)     P2: стрелки + пр.Ctrl (пр.Shift)",
     ]
-    y = 72
-    for kind, label in rows:
-        render_badge(screen, kind, x + 22, y + 9, 10)
-        col = c.HUD_TEXT if label in ("есть",) or label.startswith("x") else (120, 122, 130)
-        screen.blit(small.render(label, True, col), (x + 40, y + 2))
-        y += 26
+    y = c.HEIGHT - 44
+    for ln in lines:
+        surf = fonts["tiny"].render(ln, True, (190, 194, 206))
+        screen.blit(surf, (c.WIDTH // 2 - surf.get_width() // 2, y))
+        y += 20
 
-    if player.curse is not None:
-        render_badge(screen, c.POW_SKULL, x + 22, y + 9, 10)
-        left = max(0, (player.curse_until - now) // 1000)
-        name = c.CURSE_NAMES.get(player.curse, "?")
-        screen.blit(tiny.render(f"{name} {left}с", True, (240, 150, 160)), (x + 40, y + 3))
-        y += 26
+
+def draw_hud(screen, fonts, humans, fighters, now, st):
+    """Правая панель: режим, статы игроков, счёт, подсказки."""
+    x = c.FIELD_W
+    small, tiny, font = fonts["small"], fonts["tiny"], fonts["font"]
+    pygame.draw.rect(screen, c.HUD_BG, (x, 0, c.HUD_W, c.HEIGHT))
+    secs = max(0, (now - st["round_start"]) // 1000)
+    screen.blit(font.render("BOMBERMAN", True, c.HUD_TEXT), (x + 12, 10))
+    screen.blit(tiny.render(f"{c.MODE_NAMES[st['mode']]}", True, c.ACCENT), (x + 12, 30))
+    alive_bots = sum(1 for f in fighters if getattr(f, "is_bot", False) and f.alive)
+    screen.blit(tiny.render(f"Раунд {secs//60}:{secs%60:02d}   боты:{alive_bots}",
+                            True, c.HUD_TEXT), (x + 12, 46))
+
+    y = 66
+    for i, h in enumerate(humans):
+        y = _draw_player_block(screen, fonts, h.player, x, y, f"P{i+1}",
+                               st["scores"].get(h.player.index, 0), now)
 
     hints = [
-        f"Сложность: {c.DIFF_NAMES[state['difficulty']]}",
-        f"Ботов: {state['bots']}",
-        "",
-        "Пробел — бомба",
-        "E — детонатор",
-        "1/2/3 — сложность",
-        "[ ] — число ботов",
-        "R — заново  Esc — выход",
+        "P1 WASD+Пробел",
+        "P2 стрелки+ПКМCtrl",
+        "R — раунд",
+        "Esc — меню",
     ]
-    hy = c.HEIGHT - len(hints) * 19 - 10
+    hy = c.HEIGHT - len(hints) * 18 - 8
     for line in hints:
-        screen.blit(tiny.render(line, True, c.HUD_TEXT), (x + 14, hy))
-        hy += 19
+        screen.blit(tiny.render(line, True, (170, 174, 186)), (x + 12, hy))
+        hy += 18
 
 
-def _draw_banner(screen, big, small, state, player):
+def _draw_player_block(screen, fonts, player, x, y, label, wins, now):
+    """Компактный блок статов одного игрока: имя, значки, проклятие, победы."""
+    small, tiny = fonts["small"], fonts["tiny"]
+    name_col = player.color if player.alive else c.DEAD_COLOR
+    pygame.draw.rect(screen, (36, 38, 46), (x + 8, y, c.HUD_W - 16, 74), border_radius=6)
+    tag = tiny.render(f"{label}  побед: {wins}", True, name_col)
+    screen.blit(tag, (x + 14, y + 4))
+    if not player.alive:
+        screen.blit(tiny.render("выбыл", True, (200, 120, 120)), (x + c.HUD_W - 54, y + 4))
+    # Значки статов в ряд
+    rows = [(c.POW_BOMB, str(player.max_bombs)), (c.POW_FIRE, str(player.fire)),
+            (c.POW_SPEED, str(player.speed_level + 1))]
+    bx = x + 20
+    for kind, val in rows:
+        render_badge(screen, kind, bx, y + 34, 9)
+        screen.blit(tiny.render(val, True, c.HUD_TEXT), (bx + 11, y + 27))
+        bx += 34
+    # Способности и проклятие
+    if player.kick:
+        render_badge(screen, c.POW_KICK, bx, y + 34, 9); bx += 22
+    if player.detonator:
+        render_badge(screen, c.POW_DETON, bx, y + 34, 9); bx += 22
+    if player.curse is not None:
+        left = max(0, (player.curse_until - now) // 1000)
+        screen.blit(tiny.render(f"! {c.CURSE_NAMES.get(player.curse,'?')} {left}с",
+                                True, (240, 150, 160)), (x + 14, y + 52))
+    return y + 82
+
+
+def _draw_banner(screen, fonts, st, humans, fighters):
     """Плашка итога раунда по центру поля."""
-    w = state["winner"]
-    if w is player:
-        text, col = "ПОБЕДА!", (120, 220, 130)
-    elif w is not None:
+    w = st["winner"]
+    if w is not None and getattr(w, "is_bot", False):
         text, col = "Победил бот", (235, 130, 120)
+    elif w is not None:
+        num = next((i + 1 for i, h in enumerate(humans) if h.player is w), None)
+        text, col = (f"Победил P{num}!" if num else "Победа!"), (120, 220, 130)
     else:
-        text, col = "Ничья", (220, 220, 140)
+        # Победителя-одиночки нет: либо все погибли (ничья), либо люди выбыли,
+        # а боты ещё живы (поражение игроков).
+        humans_alive = any(h.player.alive for h in humans)
+        bots_alive = any(getattr(f, "is_bot", False) and f.alive for f in fighters)
+        if not humans_alive and bots_alive:
+            text, col = "Боты победили", (235, 130, 120)
+        else:
+            text, col = "Ничья", (220, 220, 140)
     surf = pygame.Surface((c.FIELD_W, 90), pygame.SRCALPHA)
     surf.fill((0, 0, 0, 150))
     screen.blit(surf, (0, c.FIELD_H // 2 - 45))
-    label = big.render(text, True, col)
+    label = fonts["big"].render(text, True, col)
     screen.blit(label, (c.FIELD_W // 2 - label.get_width() // 2, c.FIELD_H // 2 - 30))
-    sub = small.render("новый раунд…", True, c.WHITE)
+    sub = fonts["small"].render("новый раунд…", True, c.WHITE)
     screen.blit(sub, (c.FIELD_W // 2 - sub.get_width() // 2, c.FIELD_H // 2 + 12))
 
 
