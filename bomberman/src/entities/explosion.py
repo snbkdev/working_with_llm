@@ -5,11 +5,12 @@
 клетку, ломает **один** ящик и останавливается. Клетки-пламя нужны и для
 отрисовки, и для проверки попадания игрока/цепного подрыва других бомб.
 
-Геометрия считается чистой функцией `flame_cells` (без pygame и без мутаций),
-поэтому легко тестируется headless. Время жизни — на инъектируемом `now` (мс),
-как у бомбы. pygame нужен только для отрисовки.
+Геометрия считается чистыми функциями (`flame_rays`/`flame_cells`, без pygame
+и без мутаций), поэтому легко тестируется headless. Время жизни — на
+инъектируемом `now` (мс), как у бомбы. pygame нужен только для отрисовки.
 """
 
+import math
 import random
 
 from .. import config as c
@@ -18,25 +19,37 @@ from .. import config as c
 _RAYS = (c.UP, c.DOWN, c.LEFT, c.RIGHT)
 
 
-def flame_cells(arena, col, row, fire):
-    """Клетки пламени и попавшие под него ящики (без изменения арены).
+def flame_rays(arena, col, row, fire):
+    """Лучи пламени по направлениям и список задетых ящиков (без мутаций).
 
-    Возвращает (cells, blocks):
-      cells  — список (col, row) всех клеток пламени, начиная с центра;
-      blocks — подсписок клеток, где стоит разрушаемый ящик (по одному на луч).
+    Возвращает (rays, blocks):
+      rays   — dict {направление: [клетки от центра к краю]};
+      blocks — клетки с разрушаемым ящиком (по одному на луч, они же — концы).
     """
-    cells = [(col, row)]
+    rays = {}
     blocks = []
-    for dx, dy in _RAYS:
+    for d in _RAYS:
+        dx, dy = d
+        line = []
         for step in range(1, fire + 1):
             nc, nr = col + dx * step, row + dy * step
             if arena.is_wall(nc, nr):
                 break                       # несокрушимая стена — гасим луч
             if arena.is_block(nc, nr):
-                cells.append((nc, nr))
+                line.append((nc, nr))
                 blocks.append((nc, nr))
                 break                       # ломаем один ящик и стоп
-            cells.append((nc, nr))          # пол — пламя идёт дальше
+            line.append((nc, nr))           # пол — пламя идёт дальше
+        rays[d] = line
+    return rays, blocks
+
+
+def flame_cells(arena, col, row, fire):
+    """Все клетки пламени (начиная с центра) и задетые ящики."""
+    rays, blocks = flame_rays(arena, col, row, fire)
+    cells = [(col, row)]
+    for d in _RAYS:
+        cells.extend(rays[d])
     return cells, blocks
 
 
@@ -48,7 +61,10 @@ class Explosion:
         self.born = now
         self.life = c.FLAME_MS
         self.done = False
-        self.cells, blocks = flame_cells(arena, col, row, fire)
+        self.rays, blocks = flame_rays(arena, col, row, fire)
+        self.cells = [(col, row)]
+        for d in _RAYS:
+            self.cells.extend(self.rays[d])
         # Разрушаем задетые ящики сразу; список пригодится для выпадения бонусов
         self.destroyed = [cell for cell in blocks if arena.destroy_block(*cell)]
 
@@ -66,16 +82,83 @@ class Explosion:
     def draw(self, screen, now):
         import pygame
 
-        # Ярче в начале, гаснет к концу
-        k = 1.0 - min(1.0, (now - self.born) / self.life)
-        rng = random.Random(self.born * 1000 + now // 60)   # лёгкое дрожание языков
-        for col, row in self.cells:
-            x, y = col * c.TILE, row * c.TILE
-            cx, cy = x + c.TILE // 2, y + c.TILE // 2
-            center = (col, row) == (self.col, self.row)
-            r_edge = int((c.TILE // 2 - 2) * (0.75 + 0.25 * k))
-            r_hot = int(r_edge * 0.72) + rng.randint(-1, 1)
-            r_core = int(r_edge * (0.5 if center else 0.4))
-            pygame.draw.circle(screen, c.FLAME_EDGE, (cx, cy), r_edge)
-            pygame.draw.circle(screen, c.FLAME_HOT, (cx, cy), max(2, r_hot))
-            pygame.draw.circle(screen, c.FLAME_CORE, (cx, cy), max(1, r_core))
+        t = min(1.0, max(0.0, (now - self.born) / self.life))
+        # Пламя распускается по клеткам от центра наружу за первые ~35% жизни
+        reveal = min(1.0, t / 0.35)
+        grow = min(1.0, t / 0.18)                     # ширина луча набирается
+        fade = 1.0 if t < 0.6 else max(0.0, 1.0 - (t - 0.6) / 0.4)
+        alpha = int(230 * fade)
+        if alpha <= 0:
+            return
+
+        surf = pygame.Surface((c.FIELD_W, c.FIELD_H), pygame.SRCALPHA)
+        beam = max(5, int(c.TILE * 0.5 * grow))       # уже клетки — луч не «разливается»
+        rng = random.Random(self.born + now // 70)
+
+        # Лучи-«балки»: показываем только уже «долетевшие» клетки
+        for d, line in self.rays.items():
+            visible = math.ceil(len(line) * reveal)
+            horiz = d in (c.LEFT, c.RIGHT)
+            for i, (col, row) in enumerate(line[:visible]):
+                tip = i == visible - 1
+                self._band(pygame, surf, col, row, beam, horiz, alpha, rng, tip)
+        # Центр — самый яркий, крест из двух полос + ядро
+        self._band(pygame, surf, self.col, self.row, beam, True, alpha, rng, False)
+        self._band(pygame, surf, self.col, self.row, beam, False, alpha, rng, False)
+        cx, cy = self.col * c.TILE + c.TILE // 2, self.row * c.TILE + c.TILE // 2
+        self._layers(pygame, surf, cx, cy, int(beam * 0.6), alpha)
+
+        screen.blit(surf, (0, 0))
+
+    def _band(self, pygame, surf, col, row, beam, horiz, alpha, rng, tip):
+        """Полоса пламени в клетке вдоль оси (луч), с концом-«вспышкой»."""
+        x, y = col * c.TILE, row * c.TILE
+        cx, cy = x + c.TILE // 2, y + c.TILE // 2
+        jit = rng.randint(-1, 1)                        # лёгкое дрожание языков
+        b = max(4, beam + jit)
+        if horiz:
+            rect = pygame.Rect(x, cy - b // 2, c.TILE, b)
+        else:
+            rect = pygame.Rect(cx - b // 2, y, b, c.TILE)
+        self._layers_rect(pygame, surf, rect, alpha)
+        if tip:                                          # конец луча — круглая вспышка
+            self._layers(pygame, surf, cx, cy, b // 2, alpha)
+
+    def _layers_rect(self, pygame, surf, rect, alpha):
+        r = min(rect.w, rect.h) // 2
+        pygame.draw.rect(surf, (*c.FLAME_EDGE, alpha), rect, border_radius=r)
+        inner = rect.inflate(-rect.w // 4 if rect.w > rect.h else -6,
+                             -rect.h // 4 if rect.h > rect.w else -6)
+        pygame.draw.rect(surf, (*c.FLAME_HOT, alpha), inner,
+                         border_radius=min(inner.w, inner.h) // 2)
+
+    def _layers(self, pygame, surf, cx, cy, r, alpha):
+        pygame.draw.circle(surf, (*c.FLAME_EDGE, alpha), (cx, cy), r)
+        pygame.draw.circle(surf, (*c.FLAME_HOT, alpha), (cx, cy), max(2, int(r * 0.7)))
+        pygame.draw.circle(surf, (*c.FLAME_CORE, alpha), (cx, cy), max(1, int(r * 0.42)))
+
+
+def detonate_chain(arena, bombs, explosions, now):
+    """Взрывает уже помеченные бомбы с цепной реакцией.
+
+    Перед вызовом фитили обновлены (`bomb.update(now)`), так что часть бомб уже
+    `exploded`. Каждая такая бомба порождает пламя; если оно накрывает клетку
+    другой живой бомбы — та мгновенно детонирует и тоже попадает в очередь.
+    Мутирует `explosions` (добавляет вспышки) и `bombs` (ставит `exploded`).
+    Возвращает список новых вспышек.
+    """
+    queue = [b for b in bombs if b.exploded]
+    seen = {id(b) for b in queue}
+    fresh = []
+    while queue:
+        b = queue.pop()
+        ex = Explosion(arena, b.col, b.row, b.fire, now)
+        explosions.append(ex)
+        fresh.append(ex)
+        for other in bombs:
+            if (id(other) not in seen and not other.exploded
+                    and ex.contains(other.cell)):
+                other.detonate()
+                seen.add(id(other))
+                queue.append(other)
+    return fresh

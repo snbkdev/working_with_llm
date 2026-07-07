@@ -68,3 +68,58 @@ def test_limits_are_per_owner():
     bombs = [Bomb(1, 1, owner=0, now=0)]
     # у другого игрока свой лимит
     assert can_place(bombs, (5, 5), owner=1, max_bombs=1) is True
+
+
+# --- Детонатор (remote) ---
+
+def test_remote_bomb_ignores_fuse():
+    b = Bomb(1, 1, now=0, remote=True)
+    assert b.update(c.FUSE_MS + 5000) is False        # не рвётся по фитилю
+    assert b.exploded is False
+
+
+def test_remote_bomb_detonates_on_command():
+    b = Bomb(1, 1, now=0, remote=True)
+    b.update(c.FUSE_MS + 1000)
+    b.detonate()
+    assert b.exploded is True
+
+
+# --- Пинок (скольжение) ---
+
+class _KickArena:
+    """Пустая арена с рамкой: всё внутри проходимо, край — стена."""
+
+    def in_bounds(self, col, row):
+        return 0 <= col < c.COLS and 0 <= row < c.ROWS
+
+    def is_solid(self, col, row):
+        return not self.in_bounds(col, row) or (col, row) in getattr(self, "solid", set())
+
+
+def test_kick_sets_velocity_once():
+    b = Bomb(3, 3, now=0)
+    assert b.moving is False
+    b.kick(c.RIGHT)
+    assert b.moving is True and b.vel == c.RIGHT
+    b.kick(c.LEFT)                                     # уже едет — не меняем
+    assert b.vel == c.RIGHT
+
+
+def test_kicked_bomb_slides_across_cells():
+    a = _KickArena()
+    b = Bomb(3, 3, now=0)
+    b.kick(c.RIGHT)
+    for _ in range(c.TILE // c.KICK_SPEED + 2):
+        b.update_motion(a, [b], set())
+    assert b.col == 4 and b.moving                     # переехала на клетку и едет
+
+
+def test_kicked_bomb_stops_before_wall():
+    a = _KickArena()
+    a.solid = {(6, 3)}                                 # стена на пути
+    b = Bomb(4, 3, now=0)
+    b.kick(c.RIGHT)
+    for _ in range(c.TILE * 4 // c.KICK_SPEED):
+        b.update_motion(a, [b], set())
+    assert b.cell == (5, 3) and b.moving is False      # встала вплотную к стене

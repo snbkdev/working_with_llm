@@ -3,11 +3,88 @@
 from src import config as c
 from src.world.arena import Arena
 from src.entities.player import Player
+from src.entities.explosion import Explosion
+
+
+class _FlatArena:
+    """Пустая проходимая арена для проверки пламени по клеткам."""
+
+    def in_bounds(self, col, row):
+        return 0 <= col < c.COLS and 0 <= row < c.ROWS
+
+    def is_wall(self, col, row):
+        return not self.in_bounds(col, row)
+
+    def is_block(self, col, row):
+        return False
+
+    def destroy_block(self, col, row):
+        return False
+
+
+def test_kill_sets_flags_and_is_idempotent():
+    p = Player(5, 5)
+    p.kill(now=100)
+    assert p.alive is False and p.dead_at == 100
+    p.kill(now=500)                      # повторная гибель не сдвигает время
+    assert p.dead_at == 100
+
+
+def test_respawn_revives_at_cell():
+    p = Player(5, 5)
+    p.kill(now=100)
+    p.respawn(1, 1)
+    assert p.alive is True and p.dead_at is None
+    assert p.cell == (1, 1)
+
+
+def test_in_flame_detects_overlap():
+    p = Player(5, 5)
+    ex = Explosion(_FlatArena(), 5, 5, fire=2, now=0)   # накрывает (5,5)
+    assert p.in_flame([ex]) is True
+
+
+def test_in_flame_false_when_clear():
+    p = Player(1, 1)
+    ex = Explosion(_FlatArena(), 8, 8, fire=1, now=0)
+    assert p.in_flame([ex]) is False
+    assert p.in_flame([]) is False
 
 
 def open_arena():
     """Арена без ящиков — только рамка и внутренние столбы."""
     return Arena(seed=1, density=0.0)
+
+
+def test_bomb_under_player_is_passable_then_blocks():
+    a = open_arena()
+    p = Player(1, 1)                         # угол спавна, вокруг пол
+    here = p.cell
+    # Бомба под игроком — можно уйти с клетки
+    assert p.try_move(a, c.RIGHT, [here]) is True
+    # Дошагиваем, пока полностью не сойдём с клетки бомбы
+    for _ in range(c.TILE // c.PLAYER_SPEED + 2):
+        p.try_move(a, c.RIGHT, [here])
+        if here not in p._cells_at(p.x, p.y):
+            break
+    assert here not in p._cells_at(p.x, p.y)
+    # Теперь бомба — препятствие: назад на её клетку не пускает
+    blocked = True
+    for _ in range(c.TILE // c.PLAYER_SPEED + 2):
+        if p.try_move(a, c.LEFT, [here]) and here in p._cells_at(p.x, p.y):
+            blocked = False
+            break
+    assert blocked is True
+
+
+def test_other_bomb_blocks_immediately():
+    a = open_arena()
+    p = Player(1, 1)
+    right = (2, 1)                           # соседняя клетка с чужой бомбой
+    # столб? нет: (2,1) — не чёт/чёт, значит пол; ставим туда бомбу
+    moved = p.try_move(a, c.RIGHT, [right])
+    # не должен въехать в клетку с бомбой
+    assert right not in p._cells_at(p.x, p.y)
 
 
 def test_spawns_on_floor_cell():

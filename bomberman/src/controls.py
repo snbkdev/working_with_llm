@@ -27,6 +27,7 @@ SCAN_W, SCAN_A, SCAN_S, SCAN_D = _scan("W", 26), _scan("A", 4), _scan("S", 22), 
 SCAN_UP, SCAN_DOWN = _scan("UP", 82), _scan("DOWN", 81)
 SCAN_LEFT, SCAN_RIGHT = _scan("LEFT", 80), _scan("RIGHT", 79)
 SCAN_R = _scan("R", 21)
+SCAN_E = _scan("E", 8)          # детонатор (ручной подрыв)
 
 # Физическая позиция клавиши (scancode) → направление
 SCAN_DIR = {

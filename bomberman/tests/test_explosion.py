@@ -1,7 +1,8 @@
 """Крестообразный взрыв: геометрия лучей, разрушение блоков, жизнь пламени."""
 
 from src import config as c
-from src.entities.explosion import Explosion, flame_cells
+from src.entities.bomb import Bomb
+from src.entities.explosion import Explosion, detonate_chain, flame_cells
 from src.world.arena import Arena
 
 
@@ -99,3 +100,44 @@ def test_real_arena_border_stops_flame():
     assert (0, 1) not in cells
     assert (1, 0) not in cells
     assert (1, 1) in cells
+
+
+# --- Цепные детонации ---
+
+def test_chain_detonates_bomb_in_flame():
+    a = FakeArena()
+    b1 = Bomb(5, 5, owner=0, fire=2, now=0)
+    b2 = Bomb(7, 5, owner=0, fire=1, now=0)      # в 2 клетках — в пределах огня b1
+    b1.detonate()                                 # b1 «догорела»
+    explosions = []
+    fresh = detonate_chain(a, [b1, b2], explosions, now=100)
+    assert b2.exploded is True                    # цепь достала b2
+    assert len(fresh) == 2                         # обе дали вспышку
+
+
+def test_chain_skips_bomb_out_of_range():
+    a = FakeArena()
+    b1 = Bomb(5, 5, owner=0, fire=1, now=0)
+    b2 = Bomb(9, 5, owner=0, fire=1, now=0)       # далеко — не в пламени
+    b1.detonate()
+    detonate_chain(a, [b1, b2], [], now=0)
+    assert b2.exploded is False
+
+
+def test_chain_is_transitive():
+    a = FakeArena()
+    # цепочка через одну клетку: 3→5→7, у каждой fire=2
+    b1 = Bomb(3, 5, owner=0, fire=2, now=0)
+    b2 = Bomb(5, 5, owner=0, fire=2, now=0)
+    b3 = Bomb(7, 5, owner=0, fire=2, now=0)
+    b1.detonate()
+    detonate_chain(a, [b1, b2, b3], [], now=0)
+    assert b2.exploded and b3.exploded            # взрыв прокатился до конца
+
+
+def test_chain_ignores_unexploded():
+    a = FakeArena()
+    b = Bomb(5, 5, owner=0, fire=1, now=0)        # фитиль ещё горит
+    explosions = []
+    fresh = detonate_chain(a, [b], explosions, now=0)
+    assert fresh == [] and b.exploded is False

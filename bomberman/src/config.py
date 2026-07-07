@@ -42,6 +42,77 @@ FLAME_CORE = (255, 248, 220)    # белёсое ядро
 FLAME_HOT = (255, 210, 90)      # оранжево-жёлтое
 FLAME_EDGE = (240, 120, 40)     # красно-оранжевые края
 
+# --- Раунд ---
+RESPAWN_MS = 1000               # пауза после гибели до рестарта раунда
+DEAD_COLOR = (150, 150, 158)    # обесцвеченный спрайт погибшего
+
+# --- Бонусы и проклятия (power-ups) ---
+POW_BOMB = 0                    # +1 к запасу бомб
+POW_FIRE = 1                    # +1 к длине пламени
+POW_SPEED = 2                   # +1 к скорости
+POW_KICK = 3                    # пинать бомбы
+POW_FULLFIRE = 4               # максимальный огонь
+POW_DETON = 5                   # детонатор (ручной подрыв клавишей E)
+POW_SKULL = 6                   # проклятие-череп (случайная болезнь)
+
+POWERUP_KINDS = (POW_BOMB, POW_FIRE, POW_SPEED, POW_KICK,
+                 POW_FULLFIRE, POW_DETON, POW_SKULL)
+# Веса выпадения (сумма произвольна). Черепов и «полного огня» — поменьше.
+POWERUP_WEIGHTS = {
+    POW_BOMB: 26, POW_FIRE: 26, POW_SPEED: 16, POW_KICK: 10,
+    POW_FULLFIRE: 5, POW_DETON: 8, POW_SKULL: 9,
+}
+POWERUP_DROP = 0.45            # доля разрушаемых блоков, прячущих бонус
+
+MAX_BOMBS = 8                  # потолок запаса бомб
+MAX_FIRE = 6                  # потолок длины пламени (умеренно, чтобы не «на пол-арены»)
+MAX_SPEED_LVL = 3             # +к базовой скорости от бонусов «Скорость»
+KICK_SPEED = 4                # пикселей/кадр — скольжение пиннутой бомбы
+
+# Цвета плиток-бонусов (рисуем процедурно)
+POW_COLORS = {
+    POW_BOMB: (232, 96, 88),
+    POW_FIRE: (240, 150, 50),
+    POW_SPEED: (96, 190, 120),
+    POW_KICK: (110, 170, 235),
+    POW_FULLFIRE: (240, 90, 60),
+    POW_DETON: (200, 130, 235),
+    POW_SKULL: (170, 176, 190),
+}
+
+# --- Проклятия-черепа ---
+CURSE_REVERSE = 0             # реверс управления
+CURSE_SLOW = 1               # слишком медленно
+CURSE_FAST = 2               # слишком быстро (труднее управлять)
+CURSE_MINI = 3               # мини-радиус пламени (огонь = 1)
+CURSE_AUTOBOMB = 4           # авто-сброс бомб
+CURSE_NOBOMB = 5             # нельзя ставить бомбы
+CURSES = (CURSE_REVERSE, CURSE_SLOW, CURSE_FAST,
+          CURSE_MINI, CURSE_AUTOBOMB, CURSE_NOBOMB)
+CURSE_MS = 8000              # длительность болезни
+CURSE_NAMES = {
+    CURSE_REVERSE: "реверс", CURSE_SLOW: "медленно", CURSE_FAST: "быстро",
+    CURSE_MINI: "мини-огонь", CURSE_AUTOBOMB: "авто-бомбы", CURSE_NOBOMB: "без бомб",
+}
+CURSE_SPEED_SLOW = 1         # скорость при болезни «медленно»
+CURSE_SPEED_FAST = 5         # скорость при болезни «быстро»
+AUTOBOMB_MS = 700            # период авто-сброса при болезни
+
+# --- ИИ-боты ---
+DIFF_EASY = 0
+DIFF_MEDIUM = 1
+DIFF_HARD = 2
+DIFF_NAMES = {DIFF_EASY: "Лёгкий", DIFF_MEDIUM: "Средний", DIFF_HARD: "Сложный"}
+# Параметры на уровень: период «раздумий» (мс), шанс реально поставить бомбу,
+# охотится ли за врагом, дальность просчёта пути.
+DIFF_PARAMS = {
+    DIFF_EASY:   {"think_ms": 360, "bomb_chance": 0.5, "hunt": False, "reach": 8},
+    DIFF_MEDIUM: {"think_ms": 200, "bomb_chance": 0.85, "hunt": True, "reach": 14},
+    DIFF_HARD:   {"think_ms": 110, "bomb_chance": 1.0, "hunt": True, "reach": 20},
+}
+DEFAULT_BOTS = 3             # ботов в превью по умолчанию
+DEFAULT_DIFFICULTY = DIFF_MEDIUM
+
 # --- Игрок ---
 PLAYER_SIZE = 30                # габарит < TILE, чтобы проходить в проёмы
 PLAYER_SPEED = 2                # пикселей/кадр (база; ускоряется бонусом)
@@ -55,7 +126,7 @@ PLAYER_COLORS = (
 )
 
 # --- Генерация арены ---
-BLOCK_DENSITY = 0.72            # доля свободных клеток, занятых ящиками
+BLOCK_DENSITY = 0.62            # доля свободных клеток, занятых ящиками
 # Стартовые углы игроков (клетки). Порядок: ЛВ, ПВ, ЛН, ПН.
 SPAWN_CELLS = (
     (1, 1),

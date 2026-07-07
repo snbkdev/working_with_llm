@@ -59,6 +59,20 @@ class Arena:
                     self.grid[row][col] = c.BLOCK
                 else:
                     self.grid[row][col] = c.FLOOR
+        self._hide_powerups(rng)
+
+    def _hide_powerups(self, rng):
+        """Прячет бонусы под частью ящиков (взвешенный случайный тип)."""
+        self.hidden = {}
+        kinds = list(c.POWERUP_WEIGHTS)
+        weights = [c.POWERUP_WEIGHTS[k] for k in kinds]
+        for cell in self.block_cells():
+            if rng.random() < c.POWERUP_DROP:
+                self.hidden[cell] = rng.choices(kinds, weights=weights)[0]
+
+    def pop_hidden(self, col, row):
+        """Забирает спрятанный бонус клетки (или None). Одноразово."""
+        return self.hidden.pop((col, row), None)
 
     # --- Запросы к сетке ---
     def in_bounds(self, col, row):
