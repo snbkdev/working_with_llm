@@ -24,11 +24,12 @@ from src.entities.bot import Bot
 from src.entities.explosion import detonate_chain
 from src.entities.player import Player
 from src.entities.powerup import PowerUp, pickup, render_badge
+from src.sound import Synth
 from src.world.arena import Arena
 
 # Строки главного меню
-ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_QUIT = range(5)
-MENU_ROWS = (ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_QUIT)
+ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_SOUND, ROW_QUIT = range(6)
+MENU_ROWS = (ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_SOUND, ROW_QUIT)
 
 
 def make_bomb_icon():
@@ -74,6 +75,7 @@ def main():
         "tiny": pygame.font.SysFont("Helvetica", 12, bold=True),
     }
     clock = pygame.time.Clock()
+    snd = Synth()
 
     st = {
         "scene": "menu",
@@ -86,6 +88,9 @@ def main():
         "over_at": None,
         "winner": None,
         "scores": {},                       # индекс бойца → число побед
+        "roster": [],                       # [(индекс, подпись)] участников матча
+        "round_no": 1,
+        "intro_until": 0,
     }
     arena = Arena(seed=st["seed"])
     fighters = []
@@ -128,6 +133,17 @@ def main():
                                 difficulty=st["difficulty"],
                                 seed=st["seed"] * 10 + i))
 
+        # Ростер матча (стабильные индексы → подписи для таблицы счёта)
+        roster = []
+        bi = 0
+        for f in fighters:
+            if f.index < n_humans:
+                roster.append((f.index, f"P{f.index + 1}"))
+            else:
+                bi += 1
+                roster.append((f.index, f"Бот {bi}"))
+        st["roster"] = roster
+
         for h in humans:
             h.input.clear()
         bombs.clear()
@@ -136,6 +152,15 @@ def main():
         st["round_start"] = pygame.time.get_ticks()
         st["over_at"] = None
         st["winner"] = None
+
+    def begin_intro(bump_seed):
+        """Готовит раунд и включает заставку «Раунд N»."""
+        if bump_seed:
+            st["seed"] += 1
+        spawn_round()
+        st["intro_until"] = pygame.time.get_ticks() + c.INTRO_MS
+        st["scene"] = "intro"
+        snd.play("round")
 
     def new_round(next_seed=True):
         if next_seed:
@@ -150,16 +175,17 @@ def main():
             remote = fighter.detonator and not getattr(fighter, "is_bot", False)
             bombs.append(Bomb(*cell, owner=fighter.index, fire=fighter.flame,
                               now=now, remote=remote))
+            snd.play("bomb")
 
     running = True
     while running:
         now = pygame.time.get_ticks()
 
         if st["scene"] == "menu":
-            def start_game():
+            def start_match():
                 st["scores"] = {}
-                new_round(next_seed=False)
-                st["scene"] = "play"
+                st["round_no"] = 1
+                begin_intro(bump_seed=False)
 
             for e in pygame.event.get():
                 if e.type == pygame.QUIT:
@@ -171,6 +197,7 @@ def main():
                     elif e.key in (pygame.K_UP, pygame.K_DOWN):
                         step = -1 if e.key == pygame.K_UP else 1
                         st["menu_row"] = (row + step) % len(MENU_ROWS)
+                        snd.play("blip")
                     elif e.key in (pygame.K_LEFT, pygame.K_RIGHT):
                         d = -1 if e.key == pygame.K_LEFT else 1
                         if row == ROW_MODE:
@@ -180,16 +207,54 @@ def main():
                             st["bots"] = max(1, min(bot_cap(), st["bots"] + d))
                         elif row == ROW_DIFF:
                             st["difficulty"] = (st["difficulty"] + d) % len(c.DIFF_NAMES)
+                        elif row == ROW_SOUND:
+                            snd.toggle()
+                        snd.play("blip")
                     elif e.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                         if row == ROW_QUIT:
                             running = False
+                        elif row == ROW_SOUND:
+                            snd.toggle()
                         else:
-                            start_game()
+                            start_match()
                     elif e.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                         st["difficulty"] = {pygame.K_1: c.DIFF_EASY,
                                             pygame.K_2: c.DIFF_MEDIUM,
                                             pygame.K_3: c.DIFF_HARD}[e.key]
-            draw_menu(screen, fonts, st, bot_cap(), now)
+            draw_menu(screen, fonts, st, bot_cap(), snd.enabled, now)
+            pygame.display.flip()
+            clock.tick(c.FPS)
+            continue
+
+        if st["scene"] == "intro":
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    running = False
+                elif e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
+                    st["scene"] = "menu"
+            if now >= st["intro_until"]:
+                st["round_start"] = now
+                st["scene"] = "play"
+            screen.fill(c.BG_COLOR)
+            arena.draw(screen)
+            for f in fighters:
+                if f.alive:
+                    f.draw(screen, now)
+            draw_hud(screen, fonts, humans, fighters, now, st)
+            draw_intro(screen, fonts, st)
+            pygame.display.flip()
+            clock.tick(c.FPS)
+            continue
+
+        if st["scene"] == "scoreboard":
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    running = False
+                elif e.type == pygame.KEYDOWN and e.key in (
+                        pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE,
+                        pygame.K_SPACE):
+                    st["scene"] = "menu"
+            draw_scoreboard(screen, fonts, st)
             pygame.display.flip()
             clock.tick(c.FPS)
             continue
@@ -245,6 +310,8 @@ def main():
             b.update(now)
         fresh = detonate_chain(arena, bombs, explosions, now)
         bombs = [b for b in bombs if not b.exploded]
+        if fresh:
+            snd.play("boom")
 
         for ex in fresh:
             for cell in ex.destroyed:
@@ -261,6 +328,7 @@ def main():
                 got = pickup(powerups, f.cell)
                 if got is not None:
                     f.apply_powerup(got.kind, now)
+                    snd.play("curse" if got.kind == c.POW_SKULL else "pickup")
         powerups = [p for p in powerups if not (
             p.taken or any(ex.born > p.born and ex.contains(p.cell)
                            for ex in explosions))]
@@ -268,6 +336,7 @@ def main():
         for f in fighters:
             if f.alive and f.in_flame(explosions):
                 f.kill(now)
+                snd.play("death")
 
         # Итог раунда
         if st["over_at"] is None:
@@ -281,7 +350,13 @@ def main():
                     idx = st["winner"].index
                     st["scores"][idx] = st["scores"].get(idx, 0) + 1
         elif now - st["over_at"] >= max(c.RESPAWN_MS, 1600):
-            new_round()
+            # Раунд завершён: матч продолжается или — итоговая таблица
+            if max(st["scores"].values(), default=0) >= c.WINS_TO_MATCH:
+                st["scene"] = "scoreboard"
+                snd.play("win")
+            else:
+                st["round_no"] += 1
+                begin_intro(bump_seed=True)
 
         # --- Отрисовка ---
         screen.fill(c.BG_COLOR)
@@ -337,7 +412,7 @@ def _draw_menu_bomb(screen, cx, cy, r, now):
         pygame.draw.circle(screen, (250, 140, 40), (tipx, tipy), 3)
 
 
-def draw_menu(screen, fonts, st, cap, now):
+def draw_menu(screen, fonts, st, cap, sound_on, now):
     """Главное меню при запуске: логотип и строки-пункты."""
     screen.fill(c.BG_COLOR)
     # Лёгкая «шахматка» пола на фоне
@@ -359,9 +434,10 @@ def draw_menu(screen, fonts, st, cap, now):
         ROW_MODE: ("Режим", c.MODE_NAMES[st["mode"]]),
         ROW_BOTS: ("Ботов", bots_val),
         ROW_DIFF: ("Сложность", c.DIFF_NAMES[st["difficulty"]]),
+        ROW_SOUND: ("Звук", "вкл" if sound_on else "выкл"),
         ROW_QUIT: ("Выход", None),
     }
-    y = 138
+    y = 126
     for r in MENU_ROWS:
         label, value = rows[r]
         sel = r == st["menu_row"]
@@ -381,7 +457,7 @@ def draw_menu(screen, fonts, st, cap, now):
                 screen.blit(arr, (vx - 20, box.y + 10))
                 screen.blit(fonts["font"].render(">", True, c.ACCENT),
                             (box.right - 22, box.y + 10))
-        y += 46
+        y += 42
 
     lines = [
         "↑/↓ — пункт    ←/→ — значение    Enter — выбрать    Esc — выход",
@@ -392,6 +468,52 @@ def draw_menu(screen, fonts, st, cap, now):
         surf = fonts["tiny"].render(ln, True, (190, 194, 206))
         screen.blit(surf, (c.WIDTH // 2 - surf.get_width() // 2, y))
         y += 20
+
+
+def draw_intro(screen, fonts, st):
+    """Заставка перед раундом: затемнение поля и крупное «Раунд N»."""
+    veil = pygame.Surface((c.FIELD_W, c.FIELD_H), pygame.SRCALPHA)
+    veil.fill((0, 0, 0, 150))
+    screen.blit(veil, (0, 0))
+    title = fonts["big"].render(f"Раунд {st['round_no']}", True, c.ACCENT)
+    screen.blit(title, (c.FIELD_W // 2 - title.get_width() // 2, c.FIELD_H // 2 - 46))
+    sub = fonts["font"].render(c.MODE_NAMES[st["mode"]], True, c.WHITE)
+    screen.blit(sub, (c.FIELD_W // 2 - sub.get_width() // 2, c.FIELD_H // 2 + 2))
+    go = fonts["small"].render(f"до {c.WINS_TO_MATCH} побед — приготовься!", True, (200, 204, 214))
+    screen.blit(go, (c.FIELD_W // 2 - go.get_width() // 2, c.FIELD_H // 2 + 30))
+
+
+def draw_scoreboard(screen, fonts, st):
+    """Итоговая таблица счёта матча."""
+    screen.fill(c.BG_COLOR)
+    title = fonts["big"].render("Итоги матча", True, c.ACCENT)
+    screen.blit(title, (c.WIDTH // 2 - title.get_width() // 2, 40))
+
+    roster = sorted(st["roster"], key=lambda r: -st["scores"].get(r[0], 0))
+    win_idx = roster[0][0] if roster and st["scores"].get(roster[0][0], 0) else None
+    y = 130
+    for idx, label in roster:
+        wins = st["scores"].get(idx, 0)
+        champ = idx == win_idx
+        box = pygame.Rect(c.WIDTH // 2 - 200, y, 400, 44)
+        pygame.draw.rect(screen, (46, 50, 64) if champ else (28, 30, 38), box, border_radius=8)
+        if champ:
+            pygame.draw.rect(screen, c.ACCENT, box, 2, border_radius=8)
+        col = c.ACCENT if champ else c.HUD_TEXT
+        screen.blit(fonts["font"].render(label, True, col), (box.x + 20, box.y + 13))
+        # Победы значками-бомбами
+        for k in range(wins):
+            render_badge(screen, c.POW_BOMB, box.right - 30 - k * 26, box.centery, 9)
+        screen.blit(fonts["font"].render(f"{wins}", True, col),
+                    (box.right - 30 - c.WINS_TO_MATCH * 26 - 24, box.y + 13))
+        y += 54
+
+    champ_label = next((lbl for idx, lbl in roster if idx == win_idx), None)
+    if champ_label:
+        won = fonts["big"].render(f"Победитель: {champ_label}", True, (120, 220, 130))
+        screen.blit(won, (c.WIDTH // 2 - won.get_width() // 2, y + 6))
+    hint = fonts["small"].render("Enter — в меню", True, c.WHITE)
+    screen.blit(hint, (c.WIDTH // 2 - hint.get_width() // 2, c.HEIGHT - 34))
 
 
 def draw_hud(screen, fonts, humans, fighters, now, st):
