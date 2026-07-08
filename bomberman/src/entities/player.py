@@ -9,6 +9,8 @@
 можно тестировать headless. pygame нужен только для отрисовки.
 """
 
+import math
+
 from .. import config as c
 
 
@@ -20,6 +22,13 @@ class Player:
         self.alive = True
         self.dead_at = None                 # момент гибели (мс) для анимации/паузы
         self.color = c.PLAYER_COLORS[index % len(c.PLAYER_COLORS)]
+        self.jumping = False                # в прыжке (перелёт через клетку)
+        self.jump_h = 0.0                   # текущая высота прыжка (для отрисовки)
+        self.jump_from = (0.0, 0.0)
+        self.jump_to = (0.0, 0.0)
+        self.jump_start = 0
+        self.special_until = 0              # пауза после телепорта/батута
+        self.infect_until = 0              # пауза между передачами болезни
         self.reset_stats()
         self.place_at_cell(col, row)
 
@@ -29,6 +38,8 @@ class Player:
         self.fire = 1
         self.speed_level = 0
         self.kick = False
+        self.punch = False                  # перчатка: бросок бомбы
+        self.jump = False                   # пружина: прыжок через клетку
         self.detonator = False
         self.curse = None                   # тип проклятия или None
         self.curse_until = 0                # до какого `now` действует
@@ -38,6 +49,19 @@ class Player:
         """Снимает истёкшее проклятие."""
         if self.curse is not None and now >= self.curse_until:
             self.curse = None
+
+    def set_curse(self, kind, now):
+        """Навести болезнь на срок `CURSE_MS`."""
+        self.curse = kind
+        self.curse_until = now + c.CURSE_MS
+
+    def clear_curse(self):
+        self.curse = None
+
+    def touches(self, other):
+        """Пересекаются ли габариты двух бойцов (касание для заражения)."""
+        return (abs(self.x - other.x) < self.size
+                and abs(self.y - other.y) < self.size)
 
     @property
     def speed(self):
@@ -50,8 +74,17 @@ class Player:
 
     @property
     def flame(self):
-        """Эффективная длина пламени (болезнь «мини» ужимает до 1)."""
-        return 1 if self.curse == c.CURSE_MINI else self.fire
+        """Эффективная длина пламени (болезни «мини»/«мега» перебивают огонь)."""
+        if self.curse == c.CURSE_MINI:
+            return 1
+        if self.curse == c.CURSE_MEGAFIRE:
+            return c.MAX_FIRE
+        return self.fire
+
+    @property
+    def bomb_fuse(self):
+        """Фитиль ставящейся бомбы: короткий при болезни «короткий фитиль»."""
+        return c.SHORTFUSE_MS if self.curse == c.CURSE_SHORTFUSE else c.FUSE_MS
 
     @property
     def can_bomb(self):
@@ -81,6 +114,10 @@ class Player:
             self.speed_level = min(c.MAX_SPEED_LVL, self.speed_level + 1)
         elif kind == c.POW_KICK:
             self.kick = True
+        elif kind == c.POW_PUNCH:
+            self.punch = True
+        elif kind == c.POW_JUMP:
+            self.jump = True
         elif kind == c.POW_FULLFIRE:
             self.fire = c.MAX_FIRE
         elif kind == c.POW_DETON:
@@ -110,13 +147,69 @@ class Player:
         self.alive = True
         self.dead_at = None
         self.dir = c.DOWN
+        self.jumping = False
+        self.jump_h = 0.0
+        self.special_until = 0
+        self.infect_until = 0
         self.reset_stats()
         self.place_at_cell(col, row)
 
     def in_flame(self, explosions):
-        """Накрыт ли игрок пламенем хотя бы одного взрыва (по клетке)."""
+        """Накрыт ли игрок пламенем хотя бы одного взрыва (по клетке).
+
+        В прыжке игрок в воздухе — пламя под ним не задевает (до приземления)."""
+        if self.jumping:
+            return False
         cell = self.cell
         return any(ex.contains(cell) for ex in explosions)
+
+    # --- Прыжок через клетку (пружина) ---
+    def jump_target(self, arena, direction):
+        """Клетка приземления прыжка (через одну) или None, если некуда."""
+        col, row = self.cell
+        tc = col + direction[0] * c.JUMP_TILES
+        tr = row + direction[1] * c.JUMP_TILES
+        if not arena.in_bounds(tc, tr) or arena.is_solid(tc, tr):
+            return None
+        return tc, tr
+
+    def start_jump(self, arena, now, force=False):
+        """Начать прыжок в сторону взгляда.
+
+        Обычно нужна пружина (`self.jump`); `force=True` (батут) прыгает без неё
+        и при отсутствии выхода подпрыгивает на месте.
+        """
+        if self.jumping or (not self.jump and not force):
+            return False
+        target = self.jump_target(arena, self.dir)
+        if target is None:
+            if not force:
+                return False
+            target = self.cell                       # батут без выхода — на месте
+        tc, tr = target
+        self.jumping = True
+        self.jump_start = now
+        self.jump_from = (self.x, self.y)
+        self.jump_to = (float(tc * c.TILE + self.offset),
+                        float(tr * c.TILE + self.offset))
+        self.jump_h = 0.0
+        return True
+
+    def update_jump(self, now):
+        """Двигает игрока по параболе прыжка; по прилёту — приземляет."""
+        if not self.jumping:
+            return
+        t = (now - self.jump_start) / c.JUMP_MS
+        if t >= 1.0:
+            self.x, self.y = self.jump_to
+            self.jumping = False
+            self.jump_h = 0.0
+            return
+        fx, fy = self.jump_from
+        tx, ty = self.jump_to
+        self.x = fx + (tx - fx) * t
+        self.y = fy + (ty - fy) * t
+        self.jump_h = math.sin(math.pi * t) * c.JUMP_ARC
 
     @property
     def center(self):
@@ -198,11 +291,36 @@ class Player:
         self.x, self.y = nx, ny
         return True
 
+    def push(self, arena, direction, dist, bomb_cells=()):
+        """Сдвиг на `dist` px по направлению без смены взгляда (конвейер).
+
+        Привязывает перпендикуляр к полосе и уважает стены/бомбы — как `try_move`,
+        но не трогает `self.dir` и не зависит от скорости персонажа.
+        """
+        here = set(self._cells_at(self.x, self.y))
+        solid_bombs = {cell for cell in bomb_cells if cell not in here}
+        nx, ny = self.x, self.y
+        if direction in (c.LEFT, c.RIGHT):
+            ny = self._snap(self.y)
+        else:
+            nx = self._snap(self.x)
+        nx += direction[0] * dist
+        ny += direction[1] * dist
+        if nx < 0 or ny < 0 or nx + self.size > c.FIELD_W or ny + self.size > c.FIELD_H:
+            return False
+        if self._blocked(arena, nx, ny, solid_bombs):
+            return False
+        self.x, self.y = nx, ny
+        return True
+
     # --- Отрисовка (pygame только здесь) ---
     def draw(self, screen, now=0):
         import pygame
 
-        x, y, s = int(self.x), int(self.y), self.size
+        x, s = int(self.x), self.size
+        lift = int(self.jump_h)                      # подъём в прыжке
+        gy = int(self.y)                             # «земля» (для тени)
+        y = gy - lift                                # корпус приподнят
         cx = x + s // 2
         out = c.PLAYER_OUTLINE
         # Погибший — обесцвеченный, оседает и мигает; глаза-крестики, нимб
@@ -214,10 +332,11 @@ class Player:
         dark = tuple(int(v * 0.55) for v in col)     # тень корпуса/шлема
         light = tuple(min(255, int(v * 1.15)) for v in col)
 
-        # Тень на полу
-        shadow = pygame.Surface((s, s // 3), pygame.SRCALPHA)
-        shadow.fill((0, 0, 0, 70))
-        screen.blit(shadow, (x, y + s - s // 4))
+        # Тень на полу (в прыжке — уменьшается и остаётся под ногами)
+        sw = max(6, s - lift)
+        shadow = pygame.Surface((sw, s // 3), pygame.SRCALPHA)
+        shadow.fill((0, 0, 0, 70 if lift == 0 else 45))
+        screen.blit(shadow, (x + (s - sw) // 2, gy + s - s // 4))
 
         # Проклятие — болезненная зеленца тела и мигающая аура под ногами
         if self.curse is not None:
@@ -302,3 +421,26 @@ class Player:
         # Нимб над головой
         halo_y = hcy - head_r - 6
         pygame.draw.ellipse(screen, c.ACCENT, (hcx - 8, halo_y - 3, 16, 7), 2)
+
+
+def spread_curse(a, b, now):
+    """Заражение касанием: больной передаёт болезнь здоровому и выздоравливает.
+
+    «Горячая картошка» из Atomic Bomberman — болезнь перескакивает на того, кого
+    коснулся заражённый. Работает, только если ровно один из двоих болен, оба на
+    земле (не в прыжке) и не в паузе после недавней передачи. Возвращает True при
+    передаче.
+    """
+    if a.jumping or b.jumping:
+        return False
+    if now < a.infect_until or now < b.infect_until:
+        return False
+    if not a.touches(b):
+        return False
+    if (a.curse is None) == (b.curse is None):     # оба больны или оба здоровы
+        return False
+    sick, well = (a, b) if a.curse is not None else (b, a)
+    well.set_curse(sick.curse, now)
+    sick.clear_curse()
+    a.infect_until = b.infect_until = now + c.CONTAGION_CD_MS
+    return True

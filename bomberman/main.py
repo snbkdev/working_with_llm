@@ -14,24 +14,33 @@
 детонатор). R — новый раунд, Esc — в меню.
 """
 
+import random
+
 import pygame
 
 from src import config as c
 from src.controls import (Input, SCHEME_ARROWS, SCHEME_BOTH, SCHEME_WASD,
-                          SCAN_E, SCAN_R)
+                          SCAN_E, SCAN_R, SCAN_LSHIFT)
 from src.effects import Effects
 from src.entities.bomb import Bomb, can_place
 from src.entities.bot import Bot
 from src.entities.explosion import detonate_chain
-from src.entities.player import Player
+from src.entities.player import Player, spread_curse
 from src.entities.powerup import PowerUp, pickup, render_badge
+from src import storage
 from src.sound import Synth
 from src.world.arena import Arena, spiral_order
 from src.world.schemes import scheme_for
 
 # Строки главного меню
-ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_SOUND, ROW_QUIT = range(6)
-MENU_ROWS = (ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_SOUND, ROW_QUIT)
+(ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_MAP,
+ ROW_SOUND, ROW_QUIT) = range(7)
+MENU_ROWS = (ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_MAP, ROW_SOUND, ROW_QUIT)
+
+
+def map_choices():
+    """Список выбора карты для меню: «случайные» + сохранённые схемы."""
+    return ["случайные"] + [p.stem for p in storage.list_maps()]
 
 # Порядок падения стен при sudden death — спираль по внутренним клеткам
 SD_SPIRAL = spiral_order(1, 1, c.COLS - 2, c.ROWS - 2)
@@ -55,17 +64,26 @@ def make_bomb_icon():
 class Human:
     """Живой игрок: спрайт + своя схема управления и клавиши действий."""
 
-    def __init__(self, player, scheme, bomb_key, deton_key=None, deton_scan=None):
+    def __init__(self, player, scheme, bomb_key, deton_key=None, deton_scan=None,
+                 jump_key=None, jump_scan=None):
         self.player = player
         self.input = Input(scheme)
         self.bomb_key = bomb_key
         self.deton_key = deton_key          # клавиша детонатора (pygame key) или None
         self.deton_scan = deton_scan        # или скан-код детонатора
+        self.jump_key = jump_key            # клавиша прыжка (pygame key) или None
+        self.jump_scan = jump_scan          # или скан-код прыжка
         self.last_autobomb = 0
 
+    def _matches(self, e, key, scan):
+        return ((key is not None and getattr(e, "key", None) == key)
+                or (scan is not None and getattr(e, "scancode", None) == scan))
+
     def wants_detonate(self, e):
-        return ((self.deton_key is not None and e.key == self.deton_key)
-                or (self.deton_scan is not None and e.scancode == self.deton_scan))
+        return self._matches(e, self.deton_key, self.deton_scan)
+
+    def wants_jump(self, e):
+        return self._matches(e, self.jump_key, self.jump_scan)
 
 
 def main():
@@ -98,6 +116,8 @@ def main():
         "round_no": 1,
         "level": 1,                         # сквозной номер уровня → схема карты
         "scheme_name": "",                  # подпись текущей схемы
+        "map_i": 0,                         # 0 — случайные схемы, иначе своя карта
+        "map_data": None,                   # загруженная пользовательская карта
         "intro_until": 0,
         "sd_active": False,                 # sudden death в процессе
         "sd_index": 0,                      # сколько стен уже упало
@@ -117,9 +137,13 @@ def main():
 
     def spawn_round():
         nonlocal fighters, humans
-        scheme = scheme_for(st["level"])
-        arena.generate(st["seed"], scheme=scheme)
-        st["scheme_name"] = scheme.name
+        if st["map_data"] is not None:
+            arena.load_custom(st["map_data"], seed=st["seed"])
+            st["scheme_name"] = f"Своя: {st['map_data'].get('name', 'карта')}"
+        else:
+            scheme = scheme_for(st["level"])
+            arena.generate(st["seed"], scheme=scheme)
+            st["scheme_name"] = scheme.name
         fighters = []
         humans = []
         n_humans = c.MODE_HUMANS[st["mode"]]
@@ -128,12 +152,14 @@ def main():
         # Живые игроки
         p1 = Player(*spawns[0], index=0)
         if n_humans == 1:
-            humans.append(Human(p1, SCHEME_BOTH, pygame.K_SPACE, deton_scan=SCAN_E))
+            humans.append(Human(p1, SCHEME_BOTH, pygame.K_SPACE, deton_scan=SCAN_E,
+                                jump_scan=SCAN_LSHIFT))
         else:
-            humans.append(Human(p1, SCHEME_WASD, pygame.K_SPACE, deton_scan=SCAN_E))
+            humans.append(Human(p1, SCHEME_WASD, pygame.K_SPACE, deton_scan=SCAN_E,
+                                jump_scan=SCAN_LSHIFT))
             p2 = Player(*spawns[1], index=1)
             humans.append(Human(p2, SCHEME_ARROWS, pygame.K_RCTRL,
-                                deton_key=pygame.K_RSHIFT))
+                                deton_key=pygame.K_RSHIFT, jump_key=pygame.K_RALT))
             fighters.append(p1)
             fighters.append(p2)
         if n_humans == 1:
@@ -195,8 +221,46 @@ def main():
         if can_place(bombs, cell, fighter.index, fighter.max_bombs):
             remote = fighter.detonator and not getattr(fighter, "is_bot", False)
             bombs.append(Bomb(*cell, owner=fighter.index, fire=fighter.flame,
-                              now=now, remote=remote))
+                              now=now, remote=remote, fuse=fighter.bomb_fuse))
             snd.play("bomb")
+
+    def place_or_throw(fighter, now):
+        """С перчаткой и стоя на бомбе — швырнуть её; иначе поставить новую."""
+        if fighter.punch:
+            here = next((b for b in bombs if b.cell == fighter.cell
+                         and not b.airborne and not b.moving), None)
+            if here is not None:
+                occ = {b.cell for b in bombs if b is not here and not b.airborne}
+                here.throw(fighter.dir, arena, occ, now)
+                snd.play("throw")
+                return
+        place_bomb(fighter, now)
+
+    def apply_special(fighter, now):
+        """Спец-тайл под бойцом: конвейер тянет, батут подбрасывает, телепорт переносит."""
+        if not fighter.alive or fighter.jumping:
+            return
+        spec = arena.special_at(*fighter.cell)
+        if spec is None:
+            return
+        kind, direction = spec
+        if kind == c.SPEC_CONVEYOR:
+            if not getattr(fighter, "is_bot", False):    # боты не сбиваются с сетки
+                fighter.push(arena, direction, c.CONVEYOR_SPEED,
+                             [b.cell for b in bombs if not b.airborne])
+            return
+        if now < fighter.special_until or not fighter.at_center:
+            return
+        if kind == c.SPEC_TRAMPOLINE:
+            if fighter.start_jump(arena, now, force=True):
+                fighter.special_until = now + c.SPECIAL_COOLDOWN_MS
+                snd.play("jump")
+        elif kind == c.SPEC_TELEPORT:
+            dests = [cell for cell in arena.teleport_cells() if cell != fighter.cell]
+            if dests:
+                fighter.place_at_cell(*random.choice(dests))
+                fighter.special_until = now + c.SPECIAL_COOLDOWN_MS
+                snd.play("teleport")
 
     running = True
     while running:
@@ -206,6 +270,14 @@ def main():
             def start_match():
                 st["scores"] = {}
                 st["round_no"] = 1
+                names = map_choices()
+                if 0 < st["map_i"] < len(names):
+                    data = storage.load_map(names[st["map_i"]])
+                    if data is not None:
+                        data["name"] = names[st["map_i"]]
+                    st["map_data"] = data
+                else:
+                    st["map_data"] = None
                 begin_intro(bump_seed=False)
 
             for e in pygame.event.get():
@@ -228,6 +300,9 @@ def main():
                             st["bots"] = max(1, min(bot_cap(), st["bots"] + d))
                         elif row == ROW_DIFF:
                             st["difficulty"] = (st["difficulty"] + d) % len(c.DIFF_NAMES)
+                        elif row == ROW_MAP:
+                            names = map_choices()
+                            st["map_i"] = (st["map_i"] + d) % len(names)
                         elif row == ROW_SOUND:
                             snd.toggle()
                         snd.play("blip")
@@ -290,8 +365,11 @@ def main():
                 new_round()
             elif e.type == pygame.KEYDOWN:
                 for h in humans:
-                    if e.key == h.bomb_key and h.player.alive:
-                        place_bomb(h.player, now)
+                    if e.key == h.bomb_key and h.player.alive and not h.player.jumping:
+                        place_or_throw(h.player, now)
+                    if h.wants_jump(e) and h.player.alive and h.player.jump:
+                        if h.player.start_jump(arena, now):
+                            snd.play("jump")
                     if h.wants_detonate(e) and h.player.alive and h.player.detonator:
                         for b in bombs:
                             if b.owner == h.player.index and b.remote:
@@ -304,10 +382,13 @@ def main():
             p = h.player
             if not p.alive:
                 continue
+            if p.jumping:                      # в прыжке — управление недоступно
+                p.update_jump(now)
+                continue
             p.update_curse(now)
             move_dir = p.input_dir(h.input.direction())
             _try_kick(p, arena, bombs, move_dir)
-            p.try_move(arena, move_dir, [b.cell for b in bombs])
+            p.try_move(arena, move_dir, [b.cell for b in bombs if not b.airborne])
             if p.auto_bomb and now - h.last_autobomb >= c.AUTOBOMB_MS:
                 place_bomb(p, now)
                 h.last_autobomb = now
@@ -316,15 +397,31 @@ def main():
         pu_cells = {p.cell for p in powerups}
         for f in fighters:
             if isinstance(f, Bot) and f.alive:
+                if f.jumping:                          # подброшен батутом — летит
+                    f.update_jump(now)
+                    continue
                 f.update_curse(now)
                 f.goal_powerups = pu_cells
                 enemies = [o for o in fighters if o is not f]
                 d, want = f.action(arena, enemies, bombs, explosions, now)
-                f.try_move(arena, d, [b.cell for b in bombs])
+                f.try_move(arena, d, [b.cell for b in bombs if not b.airborne])
                 if want:
                     place_bomb(f, now)
 
+        # Спец-тайлы: телепорт/батут/конвейер (после ходов бойцов)
+        for f in fighters:
+            apply_special(f, now)
+
+        # Заражение болезнью касанием (передаётся здоровому, больной выздоравливает)
+        alive_f = [f for f in fighters if f.alive]
+        for i in range(len(alive_f)):
+            for j in range(i + 1, len(alive_f)):
+                if spread_curse(alive_f[i], alive_f[j], now):
+                    snd.play("curse")
+
         occupied = {f.cell for f in fighters if f.alive}
+        for b in bombs:
+            b.update_flight(now)
         for b in bombs:
             b.update_motion(arena, bombs, occupied)
         for b in bombs:
@@ -455,7 +552,7 @@ def _try_kick(fighter, arena, bombs, move_dir):
     ahead = (pcol + move_dir[0], prow + move_dir[1])
     beyond = (ahead[0] + move_dir[0], ahead[1] + move_dir[1])
     for b in bombs:
-        if not b.moving and b.cell == ahead:
+        if not b.moving and not b.airborne and b.cell == ahead:
             if (not arena.is_solid(*beyond)
                     and not any(bb.cell == beyond for bb in bombs)):
                 b.kick(move_dir)
@@ -495,19 +592,22 @@ def draw_menu(screen, fonts, st, cap, sound_on, now):
     screen.blit(sub, (c.WIDTH // 2 - sub.get_width() // 2, 96))
 
     bots_val = f"{min(st['bots'], cap)}" if cap else "—"
+    names = map_choices()
+    map_val = names[st["map_i"]] if st["map_i"] < len(names) else "случайные"
     rows = {
         ROW_PLAY: ("Играть", None),
         ROW_MODE: ("Режим", c.MODE_NAMES[st["mode"]]),
         ROW_BOTS: ("Ботов", bots_val),
         ROW_DIFF: ("Сложность", c.DIFF_NAMES[st["difficulty"]]),
+        ROW_MAP: ("Карта", map_val),
         ROW_SOUND: ("Звук", "вкл" if sound_on else "выкл"),
         ROW_QUIT: ("Выход", None),
     }
-    y = 126
+    y = 116
     for r in MENU_ROWS:
         label, value = rows[r]
         sel = r == st["menu_row"]
-        box = pygame.Rect(c.WIDTH // 2 - 180, y, 360, 38)
+        box = pygame.Rect(c.WIDTH // 2 - 180, y, 360, 34)
         pygame.draw.rect(screen, (46, 50, 64) if sel else (26, 28, 36), box, border_radius=8)
         if sel:
             pygame.draw.rect(screen, c.ACCENT, box, 2, border_radius=8)
@@ -523,11 +623,11 @@ def draw_menu(screen, fonts, st, cap, sound_on, now):
                 screen.blit(arr, (vx - 20, box.y + 10))
                 screen.blit(fonts["font"].render(">", True, c.ACCENT),
                             (box.right - 22, box.y + 10))
-        y += 42
+        y += 37
 
     lines = [
         "↑/↓ — пункт    ←/→ — значение    Enter — выбрать    Esc — выход",
-        "P1: WASD + Пробел (E — детонатор)     P2: стрелки + пр.Ctrl (пр.Shift)",
+        "P1 WASD+Пробел  E детонатор  ЛевShift прыжок      P2 стрелки+пр.Ctrl  пр.Shift/пр.Alt",
     ]
     y = c.HEIGHT - 44
     for ln in lines:
@@ -652,6 +752,10 @@ def _draw_player_block(screen, fonts, player, x, y, label, wins, now):
     # Способности и проклятие
     if player.kick:
         render_badge(screen, c.POW_KICK, bx, y + 34, 9); bx += 22
+    if player.punch:
+        render_badge(screen, c.POW_PUNCH, bx, y + 34, 9); bx += 22
+    if player.jump:
+        render_badge(screen, c.POW_JUMP, bx, y + 34, 9); bx += 22
     if player.detonator:
         render_badge(screen, c.POW_DETON, bx, y + 34, 9); bx += 22
     if player.curse is not None:

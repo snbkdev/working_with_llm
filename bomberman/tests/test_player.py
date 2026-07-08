@@ -159,3 +159,113 @@ def test_block_is_obstacle():
     for col, row in a.block_cells():
         assert a.is_solid(col, row)
         break
+
+
+# --- Прыжок через клетку (пружина) ---
+
+class _WallArena:
+    """Проходимая арена с настраиваемым набором «твёрдых» клеток."""
+
+    def __init__(self, solid=()):
+        self.solid = set(solid)
+
+    def in_bounds(self, col, row):
+        return 0 <= col < c.COLS and 0 <= row < c.ROWS
+
+    def is_solid(self, col, row):
+        return not self.in_bounds(col, row) or (col, row) in self.solid
+
+
+def test_jump_target_lands_two_cells_ahead():
+    p = Player(2, 2)
+    p.jump = True
+    a = _WallArena(solid={(3, 2)})               # соседняя клетка — стена
+    assert p.jump_target(a, c.RIGHT) == (4, 2)   # перепрыгиваем через неё
+
+
+def test_jump_target_none_when_landing_blocked():
+    p = Player(2, 2)
+    a = _WallArena(solid={(4, 2)})               # клетка приземления — стена
+    assert p.jump_target(a, c.RIGHT) is None
+
+
+def test_jump_target_none_out_of_bounds():
+    p = Player(c.COLS - 2, 1)
+    a = _WallArena()
+    assert p.jump_target(a, c.RIGHT) is None      # за краем поля
+
+
+def test_start_jump_requires_ability():
+    p = Player(2, 2)
+    a = _WallArena()
+    assert p.start_jump(a, now=0) is False        # без пружины нельзя
+    assert p.jumping is False
+    p.jump = True
+    assert p.start_jump(a, now=0) is True
+    assert p.jumping is True
+
+
+def test_jump_flies_and_lands_two_ahead():
+    p = Player(2, 2)
+    p.jump = True
+    p.dir = c.RIGHT
+    a = _WallArena(solid={(3, 2)})
+    p.start_jump(a, now=0)
+    assert p.jump_h == 0.0
+    p.update_jump(c.JUMP_MS // 2)
+    assert p.jump_h > 0                           # в воздухе
+    assert p.jumping is True
+    p.update_jump(c.JUMP_MS)                       # приземлился
+    assert p.jumping is False
+    assert p.cell == (4, 2)
+    assert p.jump_h == 0.0
+
+
+def test_in_flame_false_midair():
+    p = Player(5, 5)
+    p.jump = True
+    p.dir = c.RIGHT
+    a = _WallArena()
+    ex = Explosion(_FlatArena(), 5, 5, fire=1, now=0)   # пламя на старте прыжка
+    p.start_jump(a, now=0)
+    p.update_jump(c.JUMP_MS // 2)
+    assert p.in_flame([ex]) is False              # в прыжке пламя не задевает
+
+
+# --- Конвейер (push) и батут (принудительный прыжок) ---
+
+def test_push_moves_without_changing_facing():
+    a = _WallArena()
+    p = Player(3, 3)
+    p.dir = c.UP
+    x0 = p.x
+    assert p.push(a, c.RIGHT, 2) is True
+    assert p.x == x0 + 2
+    assert p.dir == c.UP                          # конвейер не меняет взгляд
+
+
+def test_push_blocked_by_wall():
+    a = _WallArena(solid={(4, 3)})
+    p = Player(3, 3)
+    for _ in range(c.TILE):
+        p.push(a, c.RIGHT, 2)
+    assert p.x + p.size <= 4 * c.TILE + 1          # не въехал в стену
+
+
+def test_trampoline_force_jump_without_spring():
+    a = _WallArena()
+    p = Player(3, 3)
+    p.dir = c.RIGHT
+    assert p.jump is False
+    assert p.start_jump(a, now=0, force=True) is True   # батут прыгает без пружины
+    assert p.jumping is True
+
+
+def test_trampoline_bounces_in_place_when_no_exit():
+    a = _WallArena(solid={(5, 3)})                 # приземление через одну — стена
+    p = Player(3, 3)
+    p.dir = c.RIGHT
+    start_cell = p.cell
+    assert p.start_jump(a, now=0, force=True) is True
+    p.update_jump(c.JUMP_MS)
+    assert p.cell == start_cell                    # подпрыгнул на месте

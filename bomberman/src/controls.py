@@ -28,6 +28,7 @@ SCAN_UP, SCAN_DOWN = _scan("UP", 82), _scan("DOWN", 81)
 SCAN_LEFT, SCAN_RIGHT = _scan("LEFT", 80), _scan("RIGHT", 79)
 SCAN_R = _scan("R", 21)
 SCAN_E = _scan("E", 8)          # детонатор P1 (ручной подрыв)
+SCAN_LSHIFT = _scan("LSHIFT", 225)   # прыжок P1
 
 # Схемы движения по физическим позициям клавиш
 SCHEME_WASD = {SCAN_W: c.UP, SCAN_S: c.DOWN, SCAN_A: c.LEFT, SCAN_D: c.RIGHT}

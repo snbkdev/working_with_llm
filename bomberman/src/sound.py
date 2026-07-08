@@ -87,6 +87,14 @@ class Synth:
         if name == "siren":           # тревога начала sudden death
             return self._make(lambda t: math.sin(two_pi * (300 + 200 *
                               (0.5 + 0.5 * math.sin(two_pi * 4 * t))) * t), 0.6, 0.45)
+        if name == "throw":           # свист брошенной бомбы
+            return self._make(lambda t: math.sin(two_pi * (900 - 500 * t) * t)
+                              * (1 - t), 0.16, 0.35)
+        if name == "jump":            # пружинистый «бойнг»
+            return self._make(sweep(300, 720), 0.18, 0.35)
+        if name == "teleport":        # переливчатый варп
+            return self._make(lambda t: math.sin(two_pi * (500 + 400 *
+                              math.sin(two_pi * 9 * t)) * t) * (1 - t), 0.24, 0.4)
         if name == "drop":            # глухой удар упавшей стены
             return self._make(lambda t: (math.sin(two_pi * 90 * t)
                               + random.uniform(-1, 1) * 0.3) * (1 - t), 0.09, 0.4)

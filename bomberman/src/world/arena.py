@@ -89,13 +89,19 @@ class Arena:
         rng = random.Random(seed)
         safe = safe_cells()
         wall = self.scheme.wall
+        # Спец-тайлы: только на проходимых внутренних клетках (не рамка/стена/угол)
+        raw = self.scheme.specials(rng) if self.scheme.specials else {}
+        self.specials = {
+            cell: val for cell, val in raw.items()
+            if not is_border(*cell) and not wall(*cell) and cell not in safe
+        }
         self.grid = [[c.FLOOR] * c.COLS for _ in range(c.ROWS)]
         for row in range(c.ROWS):
             for col in range(c.COLS):
                 if is_border(col, row):
                     self.grid[row][col] = c.WALL
-                elif (col, row) in safe:
-                    self.grid[row][col] = c.FLOOR
+                elif (col, row) in safe or (col, row) in self.specials:
+                    self.grid[row][col] = c.FLOOR      # спец-тайл всегда на полу
                 elif wall(col, row):
                     self.grid[row][col] = c.WALL
                 elif rng.random() < self.density:
@@ -103,6 +109,42 @@ class Arena:
                 else:
                     self.grid[row][col] = c.FLOOR
         self._hide_powerups(rng)
+
+    def load_custom(self, mapdata, seed=None):
+        """Загружает пользовательскую карту (из `storage`) вместо генерации.
+
+        Сетка/спец-тайлы/спавны берутся как есть; рамка форсится в стену, под
+        спавнами расчищается пол, под ящиками прячутся бонусы (как в генерации).
+        """
+        self.grid = [list(row) for row in mapdata["grid"]]
+        self.specials = {
+            tuple(int(v) for v in key.split(",")):
+                (kind, tuple(direction) if direction else None)
+            for key, (kind, direction) in mapdata.get("specials", {}).items()
+        }
+        spawns = [tuple(s) for s in mapdata.get("spawns") or []]
+        for corner in c.SPAWN_CELLS:                 # добить до 4 углов при нехватке
+            if len(spawns) >= len(c.SPAWN_CELLS):
+                break
+            if corner not in spawns:
+                spawns.append(corner)
+        self.spawns = spawns
+        for col in range(c.COLS):                    # несокрушимая рамка обязательна
+            self.grid[0][col] = self.grid[c.ROWS - 1][col] = c.WALL
+        for row in range(c.ROWS):
+            self.grid[row][0] = self.grid[row][c.COLS - 1] = c.WALL
+        for col, row in self.spawns:                 # спавн всегда на полу
+            if self.in_bounds(col, row):
+                self.grid[row][col] = c.FLOOR
+        self._hide_powerups(random.Random(seed))
+
+    def special_at(self, col, row):
+        """(kind, dir) спец-тайла на клетке или None."""
+        return self.specials.get((col, row))
+
+    def teleport_cells(self):
+        return [cell for cell, (kind, _d) in self.specials.items()
+                if kind == c.SPEC_TELEPORT]
 
     def _hide_powerups(self, rng):
         """Прячет бонусы под частью ящиков (взвешенный случайный тип)."""
@@ -149,6 +191,7 @@ class Arena:
     def drop_wall(self, col, row):
         """Роняет несокрушимую стену на клетку (sudden death). True, если новая."""
         self.hidden.pop((col, row), None)
+        self.specials.pop((col, row), None)
         if self.grid[row][col] != c.WALL:
             self.grid[row][col] = c.WALL
             return True
@@ -177,6 +220,9 @@ class Arena:
                 t = self.grid[row][col]
                 if t == c.FLOOR:
                     self._draw_floor(pygame, screen, x, y, col, row)
+                    spec = self.specials.get((col, row))
+                    if spec is not None:
+                        self._draw_special(pygame, screen, x, y, *spec)
                 elif t == c.WALL:
                     self._draw_floor(pygame, screen, x, y, col, row)  # под фаской
                     self._draw_bevel(pygame, screen, x, y, c.WALL_COLOR,
@@ -201,6 +247,36 @@ class Arena:
                          (r.right - 1, r.bottom - 1), 2)
         pygame.draw.line(screen, dark, (r.right - 1, r.top),
                          (r.right - 1, r.bottom - 1), 2)
+
+    def _draw_special(self, pygame, screen, x, y, kind, direction):
+        """Спец-тайл поверх пола: телепорт/конвейер/батут (процедурно)."""
+        s = c.TILE
+        cx, cy = x + s // 2, y + s // 2
+        col = c.SPEC_COLORS[kind]
+        dark = tuple(int(v * 0.5) for v in col)
+        light = tuple(min(255, int(v * 1.3)) for v in col)
+        pad = 4
+        plate = pygame.Rect(x + pad, y + pad, s - pad * 2, s - pad * 2)
+        pygame.draw.rect(screen, dark, plate, border_radius=6)
+        pygame.draw.rect(screen, col, plate.inflate(-3, -3), border_radius=5)
+        if kind == c.SPEC_TELEPORT:                  # воронка из колец
+            for i, rr in enumerate((s // 2 - 7, s // 2 - 11, s // 2 - 15)):
+                if rr > 1:
+                    pygame.draw.circle(screen, light if i % 2 else dark, (cx, cy), rr, 2)
+        elif kind == c.SPEC_CONVEYOR:                # шевроны по направлению
+            dx, dy = direction
+            for k in (-6, 0, 6):
+                bx, by = cx + dx * k, cy + dy * k
+                if dx:                               # горизонтальная лента
+                    pygame.draw.lines(screen, light, False,
+                                      [(bx - 3, by - 5), (bx + 3 * dx, by), (bx - 3, by + 5)], 2)
+                else:                                # вертикальная лента
+                    pygame.draw.lines(screen, light, False,
+                                      [(bx - 5, by - 3), (bx, by + 3 * dy), (bx + 5, by - 3)], 2)
+        else:                                        # батут: пружина-крест
+            pygame.draw.ellipse(screen, light, plate.inflate(-8, -8), 2)
+            pygame.draw.line(screen, light, (cx - 6, cy), (cx + 6, cy), 2)
+            pygame.draw.line(screen, light, (cx, cy - 6), (cx, cy + 6), 2)
 
     def _draw_block(self, pygame, screen, x, y):
         self._draw_bevel(pygame, screen, x, y, c.BLOCK_COLOR,

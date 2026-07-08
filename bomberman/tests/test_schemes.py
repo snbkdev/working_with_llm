@@ -81,3 +81,46 @@ def test_default_arena_is_classic():
     for row in range(2, c.ROWS - 1, 2):
         for col in range(2, c.COLS - 1, 2):
             assert a.is_wall(col, row)
+
+
+# --- Спец-тайлы ---
+
+def _open_scheme():
+    return next(s for s in schemes.SCHEMES if s.specials is not None)
+
+
+def test_specials_present_on_open_scheme():
+    a = Arena(seed=1, scheme=_open_scheme())
+    assert a.specials                                 # что-то расставлено
+    kinds = {kind for kind, _d in a.specials.values()}
+    assert c.SPEC_TELEPORT in kinds
+    assert c.SPEC_CONVEYOR in kinds
+    assert c.SPEC_TRAMPOLINE in kinds
+
+
+def test_specials_are_on_floor_not_safe():
+    from src.world.arena import safe_cells, is_border
+    a = Arena(seed=2, scheme=_open_scheme())
+    safe = safe_cells()
+    for col, row in a.specials:
+        assert a.is_floor(col, row)                    # всегда пол
+        assert not is_border(col, row)
+        assert (col, row) not in safe
+
+
+def test_teleport_cells_pair():
+    a = Arena(seed=1, scheme=_open_scheme())
+    assert len(a.teleport_cells()) == 2
+
+
+def test_normal_scheme_has_no_specials():
+    a = Arena(seed=1, scheme=schemes.SCHEMES[0])       # «Классика» — без спец-тайлов
+    assert a.specials == {}
+    assert a.special_at(3, 3) is None
+
+
+def test_drop_wall_removes_special():
+    a = Arena(seed=1, scheme=_open_scheme())
+    cell = next(iter(a.specials))
+    assert a.drop_wall(*cell) is True
+    assert a.special_at(*cell) is None                 # спец-тайл снесён стеной

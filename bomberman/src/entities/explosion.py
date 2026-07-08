@@ -157,6 +157,7 @@ def detonate_chain(arena, bombs, explosions, now):
         fresh.append(ex)
         for other in bombs:
             if (id(other) not in seen and not other.exploded
+                    and not other.airborne          # летящую бомбу пламя не трогает
                     and ex.contains(other.cell)):
                 other.detonate()
                 seen.add(id(other))

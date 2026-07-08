@@ -1,7 +1,7 @@
 """Бомба: фитиль, подрыв, правило установки (без pygame)."""
 
 from src import config as c
-from src.entities.bomb import Bomb, can_place
+from src.entities.bomb import Bomb, can_place, flight_target
 
 
 def test_cell_and_center():
@@ -21,6 +21,12 @@ def test_fuse_explodes_at_time():
     b = Bomb(1, 1, now=0)
     assert b.update(c.FUSE_MS) is True
     assert b.exploded is True
+
+
+def test_custom_short_fuse_explodes_early():
+    b = Bomb(1, 1, now=0, fuse=c.SHORTFUSE_MS)
+    assert b.update(c.SHORTFUSE_MS - 1) is False
+    assert b.update(c.SHORTFUSE_MS) is True             # короткий фитиль
 
 
 def test_fuse_explodes_after_time():
@@ -123,3 +129,52 @@ def test_kicked_bomb_stops_before_wall():
     for _ in range(c.TILE * 4 // c.KICK_SPEED):
         b.update_motion(a, [b], set())
     assert b.cell == (5, 3) and b.moving is False      # встала вплотную к стене
+
+
+# --- Бросок (перчатка) ---
+
+def test_flight_target_flies_n_tiles():
+    a = _KickArena()
+    cell = flight_target(a, set(), 3, 3, c.RIGHT)
+    assert cell == (3 + c.THROW_TILES, 3)
+
+
+def test_flight_target_wraps_around_edge():
+    a = _KickArena()
+    # у правого края — обёртка на левую сторону поля
+    cell = flight_target(a, set(), c.COLS - 3, 3, c.RIGHT, tiles=3)
+    assert cell[0] < c.COLS - 3                        # перекинуло влево
+    assert 1 <= cell[0] <= c.COLS - 2
+
+
+def test_flight_target_skips_solid_and_occupied():
+    a = _KickArena()
+    a.solid = {(3 + c.THROW_TILES, 3)}                 # штатная цель — стена
+    occ = {(3 + c.THROW_TILES + 1, 3)}                 # и следующая занята
+    cell = flight_target(a, occ, 3, 3, c.RIGHT)
+    assert cell == (3 + c.THROW_TILES + 2, 3)          # приземлилась дальше
+
+
+def test_throw_sets_airborne_and_lands():
+    a = _KickArena()
+    b = Bomb(3, 3, now=0)
+    b.throw(c.RIGHT, a, set(), now=0)
+    assert b.airborne is True
+    b.update_flight(c.THROW_MS)                        # долетела
+    assert b.airborne is False
+    assert b.cell == (3 + c.THROW_TILES, 3)
+
+
+def test_airborne_bomb_does_not_explode():
+    b = Bomb(1, 1, now=0)
+    b.throw(c.RIGHT, _KickArena(), set(), now=0)
+    assert b.update(c.FUSE_MS + 9999) is False         # в полёте фитиль на паузе
+    assert b.exploded is False
+
+
+def test_throw_preserves_remaining_fuse():
+    b = Bomb(1, 1, now=1000)                            # 1 с фитиля уже прошла
+    left_before = b.time_left(1000)
+    b.throw(c.RIGHT, _KickArena(), set(), now=1000)
+    b.update_flight(1000 + c.THROW_MS)                  # приземлилась
+    assert b.time_left(1000 + c.THROW_MS) == left_before

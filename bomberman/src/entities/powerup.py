@@ -76,6 +76,18 @@ def _icon(pygame, screen, kind, cx, cy, r):
         pygame.draw.rect(screen, w, (cx - 5, cy - 1, 10, 7), border_radius=1)
         pygame.draw.line(screen, w, (cx, cy - 1), (cx, cy - 6), 2)
         pygame.draw.circle(screen, (250, 90, 70), (cx, cy - 7), 2)
+    elif k == c.POW_PUNCH:                        # перчатка-кулак
+        fist = pygame.Rect(cx - r + 4, cy - 3, r, r - 1)
+        pygame.draw.rect(screen, w, fist, border_radius=3)
+        for i in range(3):                       # костяшки
+            pygame.draw.circle(screen, dark, (fist.x + 3 + i * 4, fist.y), 1)
+        pygame.draw.rect(screen, w, (cx + 2, cy - 5, 5, 4), border_radius=2)  # большой палец
+    elif k == c.POW_JUMP:                        # пружина + стрелка вверх
+        for i, yy in enumerate((cy + r - 4, cy + r - 8, cy + r - 12)):
+            xoff = -3 if i % 2 == 0 else 3
+            pygame.draw.line(screen, w, (cx - 4, yy), (cx + 4, yy - 3), 2)
+        pygame.draw.lines(screen, w, False,
+                          [(cx - 4, cy - 2), (cx, cy - r + 2), (cx + 4, cy - 2)], 2)
     elif k == c.POW_SKULL:
         pygame.draw.circle(screen, w, (cx, cy - 1), r - 4)
         pygame.draw.rect(screen, w, (cx - 3, cy + r - 8, 6, 5))
