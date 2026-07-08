@@ -19,6 +19,7 @@ import pygame
 from src import config as c
 from src.controls import (Input, SCHEME_ARROWS, SCHEME_BOTH, SCHEME_WASD,
                           SCAN_E, SCAN_R)
+from src.effects import Effects
 from src.entities.bomb import Bomb, can_place
 from src.entities.bot import Bot
 from src.entities.explosion import detonate_chain
@@ -26,6 +27,7 @@ from src.entities.player import Player
 from src.entities.powerup import PowerUp, pickup, render_badge
 from src.sound import Synth
 from src.world.arena import Arena, spiral_order
+from src.world.schemes import scheme_for
 
 # Строки главного меню
 ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_SOUND, ROW_QUIT = range(6)
@@ -79,6 +81,7 @@ def main():
     }
     clock = pygame.time.Clock()
     snd = Synth()
+    effects = Effects()
 
     st = {
         "scene": "menu",
@@ -93,6 +96,8 @@ def main():
         "scores": {},                       # индекс бойца → число побед
         "roster": [],                       # [(индекс, подпись)] участников матча
         "round_no": 1,
+        "level": 1,                         # сквозной номер уровня → схема карты
+        "scheme_name": "",                  # подпись текущей схемы
         "intro_until": 0,
         "sd_active": False,                 # sudden death в процессе
         "sd_index": 0,                      # сколько стен уже упало
@@ -112,7 +117,9 @@ def main():
 
     def spawn_round():
         nonlocal fighters, humans
-        arena.generate(st["seed"])
+        scheme = scheme_for(st["level"])
+        arena.generate(st["seed"], scheme=scheme)
+        st["scheme_name"] = scheme.name
         fighters = []
         humans = []
         n_humans = c.MODE_HUMANS[st["mode"]]
@@ -156,6 +163,7 @@ def main():
         bombs.clear()
         explosions.clear()
         powerups.clear()
+        effects.reset()
         st["round_start"] = pygame.time.get_ticks()
         st["over_at"] = None
         st["winner"] = None
@@ -168,6 +176,7 @@ def main():
         """Готовит раунд и включает заставку «Раунд N»."""
         if bump_seed:
             st["seed"] += 1
+            st["level"] += 1                # следующий раунд — следующая схема
         spawn_round()
         st["intro_until"] = pygame.time.get_ticks() + c.INTRO_MS
         st["scene"] = "intro"
@@ -176,6 +185,7 @@ def main():
     def new_round(next_seed=True):
         if next_seed:
             st["seed"] += 1
+            st["level"] += 1
         spawn_round()
 
     def place_bomb(fighter, now):
@@ -323,6 +333,10 @@ def main():
         bombs = [b for b in bombs if not b.exploded]
         if fresh:
             snd.play("boom")
+            for ex in fresh:                              # искры, тряска, вспышка
+                px = ex.col * c.TILE + c.TILE // 2
+                py = ex.row * c.TILE + c.TILE // 2
+                effects.explosion(px, py, now, ex.fire)
 
         for ex in fresh:
             for cell in ex.destroyed:
@@ -346,6 +360,7 @@ def main():
 
         for f in fighters:
             if f.alive and f.in_flame(explosions):
+                effects.death(*f.center, now, f.color)
                 f.kill(now)
                 snd.play("death")
 
@@ -364,6 +379,7 @@ def main():
                     snd.play("drop")
                     for f in fighters:                     # раздавить попавших
                         if f.alive and f.cell == cell:
+                            effects.death(*f.center, now, f.color)
                             f.kill(now)
                             snd.play("death")
                     bombs = [b for b in bombs if b.cell != cell]
@@ -390,8 +406,11 @@ def main():
                 begin_intro(bump_seed=True)
 
         # --- Отрисовка ---
-        screen.fill(c.BG_COLOR)
-        arena.draw(screen)
+        # Поле рисуем на отдельной поверхности, чтобы «трясти» его при взрывах,
+        # не дёргая HUD и баннеры.
+        effects.update(now)
+        field = pygame.Surface((c.FIELD_W, c.FIELD_H))
+        arena.draw(field)
         for cell, t in list(st["sd_drops"].items()):        # вспышки-удары стен
             age = now - t
             if age > c.SD_IMPACT_MS:
@@ -400,16 +419,22 @@ def main():
             k = 1 - age / c.SD_IMPACT_MS
             flash = pygame.Surface((c.TILE, c.TILE), pygame.SRCALPHA)
             flash.fill((*c.SD_IMPACT, int(170 * k)))
-            screen.blit(flash, (cell[0] * c.TILE, cell[1] * c.TILE))
+            field.blit(flash, (cell[0] * c.TILE, cell[1] * c.TILE))
         for p in powerups:
-            p.draw(screen, now)
+            p.draw(field, now)
         for b in bombs:
-            b.draw(screen, now)
+            b.draw(field, now)
         for ex in explosions:
-            ex.draw(screen, now)
+            ex.draw(field, now)
         for f in fighters:
             if f.alive or (f.dead_at is not None and now - f.dead_at < c.RESPAWN_MS):
-                f.draw(screen, now)
+                f.draw(field, now)
+        effects.draw_flash(field, now)          # локальное свечение у взрывов
+        effects.draw_particles(field, now)
+
+        screen.fill(c.BG_COLOR)
+        dx, dy = effects.shake_offset()
+        screen.blit(field, (int(dx), int(dy)))
 
         _draw_sudden_death(screen, fonts, st, now)
         draw_hud(screen, fonts, humans, fighters, now, st)
@@ -535,11 +560,13 @@ def draw_intro(screen, fonts, st):
     veil.fill((0, 0, 0, 150))
     screen.blit(veil, (0, 0))
     title = fonts["big"].render(f"Раунд {st['round_no']}", True, c.ACCENT)
-    screen.blit(title, (c.FIELD_W // 2 - title.get_width() // 2, c.FIELD_H // 2 - 46))
+    screen.blit(title, (c.FIELD_W // 2 - title.get_width() // 2, c.FIELD_H // 2 - 54))
     sub = fonts["font"].render(c.MODE_NAMES[st["mode"]], True, c.WHITE)
-    screen.blit(sub, (c.FIELD_W // 2 - sub.get_width() // 2, c.FIELD_H // 2 + 2))
+    screen.blit(sub, (c.FIELD_W // 2 - sub.get_width() // 2, c.FIELD_H // 2 - 8))
+    scheme = fonts["small"].render(st["scheme_name"], True, (120, 200, 235))
+    screen.blit(scheme, (c.FIELD_W // 2 - scheme.get_width() // 2, c.FIELD_H // 2 + 16))
     go = fonts["small"].render(f"до {c.WINS_TO_MATCH} побед — приготовься!", True, (200, 204, 214))
-    screen.blit(go, (c.FIELD_W // 2 - go.get_width() // 2, c.FIELD_H // 2 + 30))
+    screen.blit(go, (c.FIELD_W // 2 - go.get_width() // 2, c.FIELD_H // 2 + 40))
 
 
 def draw_scoreboard(screen, fonts, st):
@@ -586,8 +613,9 @@ def draw_hud(screen, fonts, humans, fighters, now, st):
     alive_bots = sum(1 for f in fighters if getattr(f, "is_bot", False) and f.alive)
     screen.blit(tiny.render(f"Раунд {secs//60}:{secs%60:02d}   боты:{alive_bots}",
                             True, c.HUD_TEXT), (x + 12, 46))
+    screen.blit(tiny.render(st["scheme_name"], True, (120, 200, 235)), (x + 12, 60))
 
-    y = 66
+    y = 78
     for i, h in enumerate(humans):
         y = _draw_player_block(screen, fonts, h.player, x, y, f"P{i+1}",
                                st["scores"].get(h.player.index, 0), now)

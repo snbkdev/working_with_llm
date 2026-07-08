@@ -12,6 +12,12 @@ pygame используется только в отрисовке (импорт
 import random
 
 from .. import config as c
+from .schemes import CLASSIC
+
+
+def is_border(col, row):
+    """Клетка на несокрушимой рамке по краю поля."""
+    return col == 0 or row == 0 or col == c.COLS - 1 or row == c.ROWS - 1
 
 
 def is_border_or_pillar(col, row):
@@ -64,22 +70,34 @@ def safe_cells():
 
 
 class Arena:
-    def __init__(self, seed=None, density=c.BLOCK_DENSITY):
-        self.density = density
+    def __init__(self, seed=None, density=None, scheme=CLASSIC):
+        self.scheme = scheme
+        # Явная плотность (в тестах) перекрывает плотность схемы
+        self.density = scheme.density if density is None else density
         self.spawns = list(c.SPAWN_CELLS)
         self.generate(seed)
 
-    def generate(self, seed=None):
-        """Строит сетку. seed фиксирует раскладку (удобно для тестов)."""
+    def generate(self, seed=None, scheme=None):
+        """Строит сетку. seed фиксирует раскладку; scheme задаёт узор стен.
+
+        Узор берётся из схемы: несокрушимая стена там, где рамка или где предикат
+        схемы вернул True. Безопасные углы всегда пол — узор их не замуровывает.
+        """
+        if scheme is not None:
+            self.scheme = scheme
+            self.density = scheme.density
         rng = random.Random(seed)
         safe = safe_cells()
+        wall = self.scheme.wall
         self.grid = [[c.FLOOR] * c.COLS for _ in range(c.ROWS)]
         for row in range(c.ROWS):
             for col in range(c.COLS):
-                if is_border_or_pillar(col, row):
+                if is_border(col, row):
                     self.grid[row][col] = c.WALL
                 elif (col, row) in safe:
                     self.grid[row][col] = c.FLOOR
+                elif wall(col, row):
+                    self.grid[row][col] = c.WALL
                 elif rng.random() < self.density:
                     self.grid[row][col] = c.BLOCK
                 else:
