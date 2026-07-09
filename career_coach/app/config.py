@@ -27,6 +27,17 @@ XP_REWARDS = {
     "challenge": 100,  # +100 XP за код-челлендж
 }
 
+# --- Сертификаты (Этап 6) ---
+# Уровни-вехи, за достижение которых выдаётся сертификат-ранг. Ранги привязаны
+# к карьерной лестнице разработчика (цель Duckie — стать senior-разработчиком).
+CERT_LEVELS = (5, 10, 25, 50)
+CERT_RANKS = {
+    5: "Стажёр",
+    10: "Джуниор-разработчик",
+    25: "Мидл-разработчик",
+    50: "Сеньор-разработчик",
+}
+
 # --- Database / auth settings (overridable via .env) ---
 # Postgres.app default: current OS user, no password, localhost:5432.
 DATABASE_URL = os.getenv(

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Сертификаты — Duckie</title>
+  <link rel="stylesheet" href="/static/css/style.css?v=2">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app" v-cloak v-if="ready">
+    <app-topbar></app-topbar>
+
+    <div class="layout">
+      <app-sidebar active="certificates"></app-sidebar>
+      <main class="content">
+        <div class="flow-page">
+          <h1 class="view-title">Сертификаты</h1>
+          <p class="view-sub">
+            Выдаются автоматически за пройденные курсы и достигнутые уровни-вехи.
+            Нажмите на сертификат, чтобы открыть и распечатать.
+          </p>
+
+          <p v-if="error" class="admin-error">{{ error }}</p>
+
+          <p v-if="!certificates.length" class="flow-empty">
+            Пока нет сертификатов. Пройдите курс полностью или достигните уровня 5 —
+            и первый сертификат появится здесь.
+          </p>
+
+          <div v-else class="cert-grid">
+            <button v-for="cert in certificates" :key="cert.id" class="cert-thumb"
+                    :class="'cert-' + cert.kind" @click="open(cert)">
+              <span class="cert-thumb-ico">{{ cert.kind === 'level' ? '🏆' : '🎓' }}</span>
+              <span class="cert-thumb-body">
+                <span class="cert-thumb-title">{{ cert.title }}</span>
+                <span class="cert-thumb-sub">{{ cert.subtitle }}</span>
+                <span class="cert-thumb-meta">{{ cert.number }} · {{ fmtDate(cert.issued_at) }}</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Печатный вид сертификата -->
+    <div v-if="selected" class="cert-backdrop" @click="selected = null">
+      <div class="cert-modal" @click.stop>
+        <div class="cert-sheet" :class="'cert-sheet-' + selected.kind">
+          <div class="cert-seal">🦆</div>
+          <div class="cert-brand">Duckie · Career Coach</div>
+          <div class="cert-kicker">Сертификат {{ selected.kind === 'level' ? 'о достижении уровня' : 'о прохождении курса' }}</div>
+          <div class="cert-award">Награждается</div>
+          <div class="cert-recipient">{{ recipient }}</div>
+          <div class="cert-for">{{ selected.kind === 'level' ? 'за достижение ранга' : 'за полное прохождение курса' }}</div>
+          <div class="cert-subject">{{ selected.title }}</div>
+          <div class="cert-note">{{ selected.subtitle }}</div>
+          <div class="cert-foot">
+            <span class="cert-foot-item">№ {{ selected.number }}</span>
+            <span class="cert-foot-item">{{ fmtDate(selected.issued_at) }}</span>
+          </div>
+        </div>
+        <div class="cert-modal-actions">
+          <button class="btn-primary" @click="printCert">🖨️ Печать</button>
+          <button class="btn-secondary" @click="selected = null">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/topbar.js"></script>
+  <script src="/static/js/sidebar.js"></script>
+  <script src="/static/js/certificates.js"></script>
+</body>
+</html>

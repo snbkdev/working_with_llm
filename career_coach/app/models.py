@@ -373,3 +373,32 @@ class ChallengeProgress(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class Certificate(Base):
+    """A certificate issued to a user when they reach a milestone.
+
+    Two kinds (see config.CERT_* ):
+      * 'course' — every lesson of a course marked completed; ref_id = course id.
+      * 'level'  — a level milestone reached (5/10/25/50); ref_id = the level.
+
+    Issued lazily (see app/certificates.py): the row's existence means the award
+    was already granted, so `title` snapshots the course/rank name at that moment
+    and `created_at` is the stable issue date shown on the certificate.
+    """
+
+    __tablename__ = "certificates"
+    __table_args__ = (
+        UniqueConstraint("user_id", "kind", "ref_id", name="uq_certificate"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)  # 'course' | 'level'
+    ref_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

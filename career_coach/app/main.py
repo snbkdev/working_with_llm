@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .admin import router as admin_router
 from .auth import router as auth_router
 from .catalog import router as catalog_router
+from .certificates import router as certificates_router
 from .challenges import router as challenges_router
 from .mentor import router as mentor_router
 from .notes import router as notes_router
@@ -49,6 +50,7 @@ app.include_router(quiz_router)
 app.include_router(challenges_router)
 app.include_router(progress_router)
 app.include_router(notes_router)
+app.include_router(certificates_router)
 
 
 class ChatRequest(BaseModel):
@@ -117,6 +119,12 @@ async def challenge_page() -> FileResponse:
 async def notes_page() -> FileResponse:
     """Serve the study-notes page (auth checked client-side)."""
     return FileResponse(TEMPLATES / "notes.html")
+
+
+@app.get("/certificates")
+async def certificates_page() -> FileResponse:
+    """Serve the certificates page (auth checked client-side)."""
+    return FileResponse(TEMPLATES / "certificates.html")
 
 
 @app.get("/goal")
