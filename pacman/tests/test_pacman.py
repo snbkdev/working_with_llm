@@ -68,6 +68,19 @@ def test_eating_scores_and_decrements():
     assert maze.dots_left < before
 
 
+def test_stops_when_key_released():
+    """Отпустил клавишу — Пакман докатывается до центра клетки и стоит."""
+    maze = Maze()
+    pac = Pacman(13, 23)
+    pac.want_dir = c.LEFT
+    run(pac, maze, 3)               # тронулся, между клетками
+    pac.want_dir = None             # клавишу отпустили
+    run(pac, maze, c.TILE)          # даём доехать до центра
+    assert pac.moving is False
+    assert pac._aligned()           # остановка строго в центре клетки
+    assert (pac.col, pac.row) == (12, 23)
+
+
 def test_reverse_is_immediate():
     maze = Maze()
     pac = Pacman(13, 23)

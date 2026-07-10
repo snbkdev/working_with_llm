@@ -29,6 +29,9 @@ class Pacman:
     def row(self):
         return int(self.cy // c.TILE)
 
+    def tile(self):
+        return (self.col, self.row)
+
     def _aligned(self):
         """Стоим ли ровно в центре клетки (можно поворачивать/есть)."""
         return ((self.cx - c.TILE // 2) % c.TILE == 0 and
@@ -55,14 +58,17 @@ class Pacman:
             col, row = self.col, self.row
             gained = maze.eat(col, row)
 
-            # Поворот, если в желаемую сторону открыт проход
-            if self.want_dir and not maze.blocked(col + self.want_dir[0],
-                                                   row + self.want_dir[1]):
+            if self.want_dir is None:
+                # Клавишу отпустили — останавливаемся в центре клетки
+                self.moving = False
+            elif not maze.blocked(col + self.want_dir[0], row + self.want_dir[1]):
+                # В желаемую сторону открыт проход — поворачиваем/едем
                 self.dir = self.want_dir
-
-            # Двигаемся, только если есть направление и впереди не стена
-            self.moving = (self.dir != c.NONE and
-                           not maze.blocked(col + self.dir[0], row + self.dir[1]))
+                self.moving = True
+            else:
+                # Впереди по желаемой — стена; едем прямо, если там свободно
+                self.moving = (self.dir != c.NONE and
+                               not maze.blocked(col + self.dir[0], row + self.dir[1]))
 
         if self.dir != c.NONE and self.moving:
             self.cx += self.dir[0] * c.PACMAN_SPEED

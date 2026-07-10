@@ -82,6 +82,19 @@ class Maze:
             return True
         return self.grid[row][col] in (WALL, GATE)
 
+    def blocked_ghost(self, col, row, gate_ok=False):
+        """Твёрдо ли для призрака? Воротца проходимы только при `gate_ok`."""
+        if row == c.TUNNEL_ROW and (col < 0 or col >= c.COLS):
+            return False
+        if not (0 <= row < c.ROWS and 0 <= col < c.COLS):
+            return True
+        t = self.grid[row][col]
+        if t == WALL:
+            return True
+        if t == GATE:
+            return not gate_ok
+        return False
+
     def eat(self, col, row):
         """Съесть точку/энергайзер на клетке; вернуть начисленные очки (0 — нет)."""
         t = self.tile(col, row)

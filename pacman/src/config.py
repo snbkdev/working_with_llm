@@ -7,7 +7,7 @@
 # --- Сетка и экран ---------------------------------------------------------
 COLS = 28                      # ширина лабиринта в клетках (классический Pac-Man)
 ROWS = 31                      # высота лабиринта в клетках
-TILE = 28                      # размер клетки в пикселях (крупнее обычного)
+TILE = 26                      # размер клетки в пикселях (крупный, но чуть меньше)
 
 FIELD_W = COLS * TILE          # 784 — ширина игрового поля
 FIELD_H = ROWS * TILE          # 868 — высота игрового поля
@@ -20,6 +20,16 @@ HEIGHT = HUD_TOP + FIELD_H + HUD_BOTTOM   # 980
 FPS = 60
 
 TUNNEL_ROW = 14                # ряд бокового тоннеля (обёртка слева↔справа)
+
+# Шрифт: Menlo есть в macOS, моноширинный и с кириллицей (Courier/Consolas
+# рендерят русские буквы «квадратами»). pygame импортируется лениво, чтобы
+# config оставался пригодным для headless-тестов без окна.
+FONT_NAME = "menlo"
+
+
+def font(size, bold=True):
+    import pygame
+    return pygame.font.SysFont(FONT_NAME, size, bold=bold)
 
 # --- Направления (dx, dy) --------------------------------------------------
 NONE = (0, 0)
@@ -51,3 +61,51 @@ ENERGIZER = (255, 184, 151)
 PACMAN = (255, 255, 0)
 TEXT = (255, 255, 255)
 READY_COLOR = (255, 255, 0)
+GAMEOVER_COLOR = (255, 60, 60)
+
+# --- Призраки --------------------------------------------------------------
+BLINKY, PINKY, INKY, CLYDE = range(4)             # порядок появления/важности
+GHOST_NAMES = {BLINKY: "Blinky", PINKY: "Pinky", INKY: "Inky", CLYDE: "Clyde"}
+GHOST_COLORS = {
+    BLINKY: (255, 0, 0), PINKY: (255, 184, 255),
+    INKY: (0, 255, 222), CLYDE: (255, 184, 82),
+}
+FRIGHT_BLUE = (36, 36, 255)        # испуганный призрак
+FRIGHT_WHITE = (240, 240, 255)     # мигание перед окончанием испуга
+EYE_WHITE = (255, 255, 255)
+EYE_IRIS = (33, 33, 222)
+
+# Режимы поведения
+SCATTER, CHASE, FRIGHTENED = range(3)
+
+# Углы-«дома» для scatter (за пределами лабиринта — как в оригинале)
+SCATTER_TARGETS = {
+    BLINKY: (COLS - 3, -3), PINKY: (2, -3),
+    INKY: (COLS - 1, ROWS + 1), CLYDE: (0, ROWS + 1),
+}
+
+# Дом призраков (тайлы): выход над воротцами, центр, стартовые слоты
+HOUSE_EXIT = (13, 11)
+HOUSE_CENTER = (13, 14)
+GHOST_HOME = {BLINKY: (13, 11), PINKY: (13, 14), INKY: (11, 14), CLYDE: (15, 14)}
+# Сколько точек нужно съесть, чтобы призрак вышел из дома
+GHOST_RELEASE_DOTS = {BLINKY: 0, PINKY: 0, INKY: 30, CLYDE: 60}
+
+GHOST_EAT_POINTS = [200, 400, 800, 1600]          # цепочка за один энергайзер
+
+# Скорости-доли (часть кадров, когда призрак делает шаг 2 px)
+FRIGHT_SPEED = 0.5
+EYES_SPEED = 1.0                   # «глаза» возвращаются быстро
+TUNNEL_SPEED = 0.4                 # все тормозят в тоннеле
+
+# --- Сложность (уровень врагов) --------------------------------------------
+DIFF_NAMES = ["ЛЕГКО", "СРЕДНЕ", "СЛОЖНО"]
+DIFFS = {
+    0: {"ghost_speed": 0.72, "fright_ms": 7000, "scatter_ms": 8000, "chase_ms": 18000},
+    1: {"ghost_speed": 0.82, "fright_ms": 5000, "scatter_ms": 7000, "chase_ms": 20000},
+    2: {"ghost_speed": 0.92, "fright_ms": 3000, "scatter_ms": 5000, "chase_ms": 22000},
+}
+
+MIN_ENEMIES, MAX_ENEMIES = 1, 4
+DEATH_MS = 1400                    # пауза анимации гибели Пакмана
+GAMEOVER_MS = 2600                 # экран Game Over перед возвратом в меню
