@@ -74,9 +74,13 @@ def test_punch_flag():
     assert p.punch is True
 
 
-def test_fullfire_maxes_fire():
+def test_fullfire_adds_one_cell():
     p = Player(1, 1)
+    base = p.fire
     p.apply_powerup(c.POW_FULLFIRE)
+    assert p.fire == base + 1
+    for _ in range(20):                      # растёт по +1 и упирается в потолок
+        p.apply_powerup(c.POW_FULLFIRE)
     assert p.fire == c.MAX_FIRE
 
 

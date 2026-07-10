@@ -119,7 +119,7 @@ class Player:
         elif kind == c.POW_JUMP:
             self.jump = True
         elif kind == c.POW_FULLFIRE:
-            self.fire = c.MAX_FIRE
+            self.fire = min(c.MAX_FIRE, self.fire + 1)   # тоже +1 клетка, а не сразу максимум
         elif kind == c.POW_DETON:
             self.detonator = True
         elif kind == c.POW_SKULL:

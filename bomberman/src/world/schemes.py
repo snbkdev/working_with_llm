@@ -74,8 +74,9 @@ def _spec_open(rng):
     d = {
         (3, 3): (c.SPEC_TELEPORT, None),
         (c.COLS - 4, c.ROWS - 4): (c.SPEC_TELEPORT, None),
-        (c.COLS // 2, 2): (c.SPEC_TRAMPOLINE, None),
-        (c.COLS // 2, c.ROWS - 3): (c.SPEC_TRAMPOLINE, None),
+        # На один ряд внутрь от середины сторон — там теперь спавны 5–8 бойцов
+        (c.COLS // 2, 3): (c.SPEC_TRAMPOLINE, None),
+        (c.COLS // 2, c.ROWS - 4): (c.SPEC_TRAMPOLINE, None),
     }
     for col in range(4, c.COLS - 4):                # лента тащит вправо
         d[(col, mid)] = (c.SPEC_CONVEYOR, c.RIGHT)

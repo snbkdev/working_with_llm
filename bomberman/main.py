@@ -33,9 +33,10 @@ from src.world.arena import Arena, spiral_order
 from src.world.schemes import scheme_for
 
 # Строки главного меню
-(ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_MAP,
- ROW_SOUND, ROW_QUIT) = range(7)
-MENU_ROWS = (ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_DIFF, ROW_MAP, ROW_SOUND, ROW_QUIT)
+(ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_ROUNDS, ROW_DIFF, ROW_MAP,
+ ROW_SOUND, ROW_QUIT) = range(8)
+MENU_ROWS = (ROW_PLAY, ROW_MODE, ROW_BOTS, ROW_ROUNDS, ROW_DIFF, ROW_MAP,
+             ROW_SOUND, ROW_QUIT)
 
 
 def map_choices():
@@ -106,12 +107,14 @@ def main():
         "menu_row": ROW_PLAY,
         "mode": c.MODE_1P_AI,
         "bots": c.DEFAULT_BOTS,
+        "wins_to_match": c.WINS_TO_MATCH,   # раундов (побед) до победы в матче — выбор в меню
         "difficulty": c.DEFAULT_DIFFICULTY,
         "seed": 0,
         "round_start": 0,
         "over_at": None,
         "winner": None,
         "scores": {},                       # индекс бойца → число побед
+        "carry": {},                        # индекс бойца → собранные статы (переносятся на новый уровень)
         "roster": [],                       # [(индекс, подпись)] участников матча
         "round_no": 1,
         "level": 1,                         # сквозной номер уровня → схема карты
@@ -134,6 +137,22 @@ def main():
         if st["mode"] == c.MODE_2P_DUEL:
             return 0
         return c.MAX_FIGHTERS - c.MODE_HUMANS[st["mode"]]
+
+    # Собранные бонусы переносятся на следующий уровень (проклятия — нет).
+    CARRY_FIELDS = ("max_bombs", "fire", "speed_level",
+                    "kick", "punch", "jump", "detonator")
+
+    def snapshot_stats():
+        """Запомнить статы ВЫЖИВШИХ бойцов (кто погиб — начнёт новый уровень с нуля)."""
+        st["carry"] = {f.index: {k: getattr(f, k) for k in CARRY_FIELDS}
+                       for f in fighters if f.alive}
+
+    def restore_stats(fighter):
+        """Вернуть бойцу собранные ранее статы, если они есть."""
+        snap = st["carry"].get(fighter.index)
+        if snap:
+            for k, v in snap.items():
+                setattr(fighter, k, v)
 
     def spawn_round():
         nonlocal fighters, humans
@@ -184,6 +203,9 @@ def main():
                 roster.append((f.index, f"Бот {bi}"))
         st["roster"] = roster
 
+        for f in fighters:                  # перенос собранных бонусов на новый уровень
+            restore_stats(f)
+
         for h in humans:
             h.input.clear()
         bombs.clear()
@@ -201,6 +223,7 @@ def main():
     def begin_intro(bump_seed):
         """Готовит раунд и включает заставку «Раунд N»."""
         if bump_seed:
+            snapshot_stats()                # запомнить бонусы перед новым уровнем
             st["seed"] += 1
             st["level"] += 1                # следующий раунд — следующая схема
         spawn_round()
@@ -210,6 +233,7 @@ def main():
 
     def new_round(next_seed=True):
         if next_seed:
+            snapshot_stats()                # бонусы переносятся и при ручном рестарте
             st["seed"] += 1
             st["level"] += 1
         spawn_round()
@@ -269,6 +293,7 @@ def main():
         if st["scene"] == "menu":
             def start_match():
                 st["scores"] = {}
+                st["carry"] = {}            # новый матч — статы с нуля
                 st["round_no"] = 1
                 names = map_choices()
                 if 0 < st["map_i"] < len(names):
@@ -298,6 +323,10 @@ def main():
                             st["bots"] = min(st["bots"], max(1, bot_cap()))
                         elif row == ROW_BOTS and bot_cap():
                             st["bots"] = max(1, min(bot_cap(), st["bots"] + d))
+                        elif row == ROW_ROUNDS:
+                            st["wins_to_match"] = max(
+                                c.MIN_WINS_TO_MATCH,
+                                min(c.MAX_WINS_TO_MATCH, st["wins_to_match"] + d))
                         elif row == ROW_DIFF:
                             st["difficulty"] = (st["difficulty"] + d) % len(c.DIFF_NAMES)
                         elif row == ROW_MAP:
@@ -482,12 +511,11 @@ def main():
                     bombs = [b for b in bombs if b.cell != cell]
                     powerups = [p for p in powerups if p.cell != cell]
 
-        # Итог раунда
+        # Итог раунда — «последний выживший»: раунд идёт, пока живо >1 бойца,
+        # поэтому победу засчитываем и ботам (иначе матч не дойдёт до таблицы).
         if st["over_at"] is None:
             alive = [f for f in fighters if f.alive]
-            humans_alive = [h.player for h in humans if h.player.alive]
-            done = len(alive) <= 1 or (humans and not humans_alive)
-            if done:
+            if len(alive) <= 1:
                 st["over_at"] = now
                 st["winner"] = alive[0] if len(alive) == 1 else None
                 if st["winner"] is not None:
@@ -495,7 +523,7 @@ def main():
                     st["scores"][idx] = st["scores"].get(idx, 0) + 1
         elif now - st["over_at"] >= max(c.RESPAWN_MS, 1600):
             # Раунд завершён: матч продолжается или — итоговая таблица
-            if max(st["scores"].values(), default=0) >= c.WINS_TO_MATCH:
+            if max(st["scores"].values(), default=0) >= st["wins_to_match"]:
                 st["scene"] = "scoreboard"
                 snd.play("win")
             else:
@@ -598,32 +626,34 @@ def draw_menu(screen, fonts, st, cap, sound_on, now):
         ROW_PLAY: ("Играть", None),
         ROW_MODE: ("Режим", c.MODE_NAMES[st["mode"]]),
         ROW_BOTS: ("Ботов", bots_val),
+        ROW_ROUNDS: ("Раундов до победы", str(st["wins_to_match"])),
         ROW_DIFF: ("Сложность", c.DIFF_NAMES[st["difficulty"]]),
         ROW_MAP: ("Карта", map_val),
         ROW_SOUND: ("Звук", "вкл" if sound_on else "выкл"),
         ROW_QUIT: ("Выход", None),
     }
-    y = 116
+    y = 112
     for r in MENU_ROWS:
         label, value = rows[r]
         sel = r == st["menu_row"]
-        box = pygame.Rect(c.WIDTH // 2 - 180, y, 360, 34)
+        box = pygame.Rect(c.WIDTH // 2 - 180, y, 360, 30)
         pygame.draw.rect(screen, (46, 50, 64) if sel else (26, 28, 36), box, border_radius=8)
         if sel:
             pygame.draw.rect(screen, c.ACCENT, box, 2, border_radius=8)
             pygame.draw.circle(screen, c.ACCENT, (box.x + 16, box.centery), 4)
         col = c.ACCENT if sel else c.HUD_TEXT
-        screen.blit(fonts["font"].render(label, True, col), (box.x + 30, box.y + 10))
+        ty = box.y + 6
+        screen.blit(fonts["font"].render(label, True, col), (box.x + 30, ty))
         if value is not None:
             vs = fonts["font"].render(value, True, c.WHITE if sel else (170, 174, 186))
             vx = box.right - vs.get_width() - 30
-            screen.blit(vs, (vx, box.y + 10))
+            screen.blit(vs, (vx, ty))
             if sel:  # стрелки выбора ‹ ›
                 arr = fonts["font"].render("<", True, c.ACCENT)
-                screen.blit(arr, (vx - 20, box.y + 10))
+                screen.blit(arr, (vx - 20, ty))
                 screen.blit(fonts["font"].render(">", True, c.ACCENT),
-                            (box.right - 22, box.y + 10))
-        y += 37
+                            (box.right - 22, ty))
+        y += 33
 
     lines = [
         "↑/↓ — пункт    ←/→ — значение    Enter — выбрать    Esc — выход",
@@ -665,7 +695,7 @@ def draw_intro(screen, fonts, st):
     screen.blit(sub, (c.FIELD_W // 2 - sub.get_width() // 2, c.FIELD_H // 2 - 8))
     scheme = fonts["small"].render(st["scheme_name"], True, (120, 200, 235))
     screen.blit(scheme, (c.FIELD_W // 2 - scheme.get_width() // 2, c.FIELD_H // 2 + 16))
-    go = fonts["small"].render(f"до {c.WINS_TO_MATCH} побед — приготовься!", True, (200, 204, 214))
+    go = fonts["small"].render(f"до {st['wins_to_match']} побед — приготовься!", True, (200, 204, 214))
     screen.blit(go, (c.FIELD_W // 2 - go.get_width() // 2, c.FIELD_H // 2 + 40))
 
 
@@ -677,27 +707,37 @@ def draw_scoreboard(screen, fonts, st):
 
     roster = sorted(st["roster"], key=lambda r: -st["scores"].get(r[0], 0))
     win_idx = roster[0][0] if roster and st["scores"].get(roster[0][0], 0) else None
-    y = 130
+    # Высота строки подстраивается под число бойцов (до 8) — таблица влезает в экран
+    n = max(1, len(roster))
+    top, bottom = 96, c.HEIGHT - 60
+    rh = min(48, (bottom - top) // n)
+    badge_r = 9 if rh >= 40 else 6
+    y = top
     for idx, label in roster:
         wins = st["scores"].get(idx, 0)
         champ = idx == win_idx
-        box = pygame.Rect(c.WIDTH // 2 - 200, y, 400, 44)
+        box = pygame.Rect(c.WIDTH // 2 - 200, y, 400, rh - 6)
         pygame.draw.rect(screen, (46, 50, 64) if champ else (28, 30, 38), box, border_radius=8)
         if champ:
             pygame.draw.rect(screen, c.ACCENT, box, 2, border_radius=8)
         col = c.ACCENT if champ else c.HUD_TEXT
-        screen.blit(fonts["font"].render(label, True, col), (box.x + 20, box.y + 13))
-        # Победы значками-бомбами
+        ty = box.y + (box.h - fonts["font"].get_height()) // 2
+        screen.blit(fonts["font"].render(label, True, col), (box.x + 20, ty))
+        # Победы: значки-бомбы (пока помещаются) + число
+        step = badge_r * 2 + 6
         for k in range(wins):
-            render_badge(screen, c.POW_BOMB, box.right - 30 - k * 26, box.centery, 9)
+            bx = box.right - 26 - k * step
+            if bx < box.x + 150:                 # не залезаем на подпись
+                break
+            render_badge(screen, c.POW_BOMB, bx, box.centery, badge_r)
         screen.blit(fonts["font"].render(f"{wins}", True, col),
-                    (box.right - 30 - c.WINS_TO_MATCH * 26 - 24, box.y + 13))
-        y += 54
+                    (box.x + 150, ty))
+        y += rh
 
     champ_label = next((lbl for idx, lbl in roster if idx == win_idx), None)
     if champ_label:
-        won = fonts["big"].render(f"Победитель: {champ_label}", True, (120, 220, 130))
-        screen.blit(won, (c.WIDTH // 2 - won.get_width() // 2, y + 6))
+        won = fonts["small"].render(f"Победитель: {champ_label}", True, (120, 220, 130))
+        screen.blit(won, (c.WIDTH // 2 - won.get_width() // 2, c.HEIGHT - 56))
     hint = fonts["small"].render("Enter — в меню", True, c.WHITE)
     screen.blit(hint, (c.WIDTH // 2 - hint.get_width() // 2, c.HEIGHT - 34))
 
@@ -720,16 +760,32 @@ def draw_hud(screen, fonts, humans, fighters, now, st):
         y = _draw_player_block(screen, fonts, h.player, x, y, f"P{i+1}",
                                st["scores"].get(h.player.index, 0), now)
 
-    hints = [
-        "P1 WASD+Пробел",
-        "P2 стрелки+ПКМCtrl",
-        "R — раунд",
-        "Esc — меню",
-    ]
-    hy = c.HEIGHT - len(hints) * 18 - 8
+    hints = ["R — раунд   Esc — меню"]
+    hy = c.HEIGHT - len(hints) * 18 - 6
+    _draw_score_table(screen, fonts, st, x, y + 2, hy - 4)     # таблица побед всех бойцов
     for line in hints:
         screen.blit(tiny.render(line, True, (170, 174, 186)), (x + 12, hy))
         hy += 18
+
+
+def _draw_score_table(screen, fonts, st, x, y, y_max):
+    """Живая таблица «у кого больше побед» — все бойцы, включая ботов."""
+    tiny = fonts["tiny"]
+    roster = sorted(st["roster"], key=lambda r: -st["scores"].get(r[0], 0))
+    if not roster:
+        return
+    lead = st["scores"].get(roster[0][0], 0)
+    screen.blit(tiny.render(f"Счёт — до {st['wins_to_match']}:", True, c.ACCENT), (x + 12, y))
+    y += 15
+    for idx, label in roster:
+        if y + 14 > y_max:                       # больше не влезает — стоп
+            break
+        wins = st["scores"].get(idx, 0)
+        leader = wins == lead and wins > 0
+        col = c.ACCENT if leader else c.HUD_TEXT
+        screen.blit(tiny.render(label, True, col), (x + 14, y))
+        screen.blit(tiny.render(str(wins), True, col), (x + c.HUD_W - 22, y))
+        y += 14
 
 
 def _draw_player_block(screen, fonts, player, x, y, label, wins, now):
