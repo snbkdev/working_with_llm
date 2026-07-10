@@ -10,7 +10,8 @@ from pathlib import Path
 
 _PATH = Path(__file__).resolve().parent.parent / "save.json"
 
-_DEFAULTS = {"high": 0, "sound": True, "volume": 0.7, "enemies": 4, "difficulty": 1}
+_DEFAULTS = {"high": 0, "sound": True, "volume": 0.7, "enemies": 4,
+             "difficulty": 1, "ms_mode": False, "maze_choice": 0}
 
 
 def load():

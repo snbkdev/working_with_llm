@@ -5,9 +5,12 @@
 режимы scatter/chase, испуг после энергайзера и съедание призраков; гибель и
 Game Over. Настройки/рекорд — в save.json.
 
+Этап 6: режим **Ms. Pac-Man** (подвижный фрукт, ротация схем, случайный ранний
+chase), **несколько схем лабиринта** с выбором в меню, рестарт по `R`.
+
 Запуск:  python main.py  (из каталога pacman)
 Меню: ↑/↓ — пункт, ←/→ — значение, Enter — старт.
-Игра: стрелки или WASD — движение, P — пауза, Esc — в меню.
+Игра: стрелки или WASD — движение, P — пауза, R — рестарт, Esc — в меню.
 """
 
 import random
@@ -19,14 +22,14 @@ from src import menu
 from src import storage
 from src.controls import Input
 from src.sound import Synth
-from src.world.maze import Maze
+from src.world.maze import Maze, LAYOUTS
 from src.world import levels
 from src.entities.pacman import Pacman
-from src.entities.ghost import Ghost, ROAM, LEAVE
+from src.entities.ghost import Ghost, ROAM, LEAVE, EYES
 from src.entities.fruit import Fruit, draw_icon
 
 SPAWN = (13, 23)
-TOTAL_DOTS = 280
+MS_RANDOM_CHASE_MS = 3000          # первые секунды chase в Ms.Pac-Man — случайные
 
 MENU, READY, PLAY, PAUSE, CLEAR, DYING, GAMEOVER = range(7)
 
@@ -53,6 +56,25 @@ def draw_hud(screen, fonts, st):
         draw_icon(screen, x0 + i * (c.TILE + 4), y, idx, c.TILE // 2 - 3)
 
 
+def make_icon():
+    """Иконка окна — жёлтый Пакман (процедурно, без файлов)."""
+    import math
+    size = 32
+    surf = pygame.Surface((size, size), pygame.SRCALPHA)   # прозрачный фон
+    cx = cy = size // 2
+    r = size // 2 - 2
+    half = 36                                             # половина угла рта
+    # силуэт: сектор круга без «рта» справа
+    pts = [(cx, cy)]
+    steps = 26
+    for i in range(steps + 1):
+        a = math.radians(half + (360 - 2 * half) * i / steps)
+        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    pygame.draw.polygon(surf, c.PACMAN, pts)
+    pygame.draw.circle(surf, (0, 0, 0), (cx - 1, cy - r // 2), 2)   # глаз
+    return surf
+
+
 def center_msg(screen, font, text, color):
     msg = font.render(text, True, color)
     screen.blit(msg, (c.WIDTH // 2 - msg.get_width() // 2,
@@ -61,6 +83,7 @@ def center_msg(screen, font, text, color):
 
 def main():
     pygame.init()
+    pygame.display.set_icon(make_icon())      # своя иконка (до set_mode)
     screen = pygame.display.set_mode((c.WIDTH, c.HEIGHT))
     pygame.display.set_caption("Pac-Man")
     clock = pygame.time.Clock()
@@ -77,8 +100,11 @@ def main():
         "score": 0, "high": int(saved["high"]), "lives": c.START_LIVES,
         "level": 1, "scene": MENU, "timer": 0, "sel": 0,
         "enemies": int(saved["enemies"]), "difficulty": int(saved["difficulty"]),
+        "ms_mode": bool(saved["ms_mode"]), "maze_choice": int(saved["maze_choice"]),
+        "maze_idx": 0,
         "mode": c.SCATTER, "mode_left": 0, "fright_until": 0, "eat_chain": 0,
         "fruit_spawned": set(), "fruits_got": [], "extra_awarded": False,
+        "popups": [], "freeze_until": 0,
     }
     maze = Maze()
     pac = Pacman(*SPAWN)
@@ -100,7 +126,12 @@ def main():
         st["mode_left"] = params()["scatter_ms"]
         st["fright_until"] = 0
         st["eat_chain"] = 0
+        st["popups"] = []
+        st["freeze_until"] = 0
         inp.clear()
+
+    def add_popup(text, cx, cy, color, now):
+        st["popups"].append({"text": text, "x": cx, "y": cy, "born": now, "color": color})
 
     def reset_level_items():
         fruit.active = False
@@ -108,7 +139,15 @@ def main():
 
     def persist():
         storage.save({"high": st["high"], "sound": snd.enabled, "volume": snd.volume,
-                      "enemies": st["enemies"], "difficulty": st["difficulty"]})
+                      "enemies": st["enemies"], "difficulty": st["difficulty"],
+                      "ms_mode": st["ms_mode"], "maze_choice": st["maze_choice"]})
+
+    def pick_maze_idx():
+        if st["ms_mode"]:
+            return (st["level"] - 1) % len(LAYOUTS)       # ротация схем по уровню
+        if st["maze_choice"] == 0:
+            return rng.randrange(len(LAYOUTS))            # случайно
+        return (st["maze_choice"] - 1) % len(LAYOUTS)
 
     def start_ready():
         nonlocal ghosts
@@ -120,16 +159,18 @@ def main():
 
     def new_game():
         nonlocal maze
-        maze = Maze()
         st.update(score=0, lives=c.START_LIVES, level=1,
                   fruits_got=[], extra_awarded=False)
+        st["maze_idx"] = pick_maze_idx()
+        maze = Maze(st["maze_idx"])
         reset_level_items()
         start_ready()
 
     def next_level():
         nonlocal maze
-        maze = Maze()
         st["level"] += 1
+        st["maze_idx"] = pick_maze_idx()
+        maze = Maze(st["maze_idx"])
         reset_level_items()
         start_ready()
 
@@ -141,7 +182,11 @@ def main():
 
     # --- Меню ---
     def menu_adjust(row, step):
-        if row == menu.ENEMIES:
+        if row == menu.MODE:
+            st["ms_mode"] = not st["ms_mode"]
+        elif row == menu.MAZE:
+            st["maze_choice"] = (st["maze_choice"] + step) % (len(LAYOUTS) + 1)
+        elif row == menu.ENEMIES:
             st["enemies"] = max(c.MIN_ENEMIES, min(c.MAX_ENEMIES, st["enemies"] + step))
         elif row == menu.DIFFICULTY:
             st["difficulty"] = (st["difficulty"] + step) % len(c.DIFF_NAMES)
@@ -205,6 +250,8 @@ def main():
                     st["eat_chain"] += 1
                     g.eaten()
                     snd.play("eatghost")
+                    add_popup(str(pts), g.cx, g.cy, c.GHOST_SCORE_COLOR, now)
+                    st["freeze_until"] = now + c.FREEZE_MS   # пауза-заморозка
                 else:
                     lose_life()
                     return
@@ -237,6 +284,9 @@ def main():
                 inp.clear()
             elif e.type == pygame.KEYDOWN and e.key == pygame.K_p and st["scene"] in (PLAY, PAUSE):
                 st["scene"] = PAUSE if st["scene"] == PLAY else PLAY
+            elif (e.type == pygame.KEYDOWN and getattr(e, "scancode", None) == 21
+                  and st["scene"] in (PLAY, PAUSE, DYING, GAMEOVER)):
+                new_game()                       # R — рестарт
             else:
                 inp.handle(e)
 
@@ -244,6 +294,9 @@ def main():
         if st["scene"] == READY:
             if now - st["timer"] >= c.READY_MS:
                 st["scene"] = PLAY
+        elif st["scene"] == PLAY and now < st["freeze_until"]:
+            # пауза-заморозка после съедения призрака: только чистим попапы
+            st["popups"] = [pp for pp in st["popups"] if now - pp["born"] < c.POPUP_MS]
         elif st["scene"] == PLAY:
             p = params()
             pac.want_dir = inp.direction()
@@ -255,7 +308,7 @@ def main():
             st["score"] += gained
 
             # выпуск призраков по числу съеденных точек
-            eaten = TOTAL_DOTS - maze.dots_left
+            eaten = maze.total - maze.dots_left
             for g in ghosts:
                 if eaten >= c.GHOST_RELEASE_DOTS[g.name]:
                     g.release()
@@ -264,27 +317,42 @@ def main():
             for thr in c.FRUIT_DOTS:
                 if eaten >= thr and thr not in st["fruit_spawned"]:
                     st["fruit_spawned"].add(thr)
-                    fruit.spawn(st["level"], now)
-            fruit.update(now)
-            fpts = fruit.eat(pac.tile())
+                    if st["ms_mode"]:         # Ms.Pac-Man — подвижный фрукт из тоннеля
+                        side = (1, c.TUNNEL_ROW) if rng.random() < 0.5 else (c.COLS - 2, c.TUNNEL_ROW)
+                        fruit.spawn(st["level"], now, moving=True, entrance=side)
+                    else:
+                        fruit.spawn(st["level"], now)
+            fruit.update(now, maze, rng)
+            fpts = fruit.eat_moving(pac.cx, pac.cy) if fruit.moving else fruit.eat(pac.tile())
             if fpts:
                 st["score"] += fpts
                 st["fruits_got"].append(fruit.idx)
                 snd.play("fruit")
+                if fruit.moving:
+                    fx, fy = int(fruit.cx), int(fruit.cy)
+                else:
+                    fx = c.FRUIT_TILE[0] * c.TILE + c.TILE // 2
+                    fy = c.FRUIT_TILE[1] * c.TILE + c.TILE // 2
+                add_popup(str(fpts), fx, fy, c.FRUIT_SCORE_COLOR, now)
 
             # экстра-жизнь на пороге очков (один раз)
             if not st["extra_awarded"] and st["score"] >= c.EXTRA_LIFE_AT:
                 st["extra_awarded"] = True
                 st["lives"] += 1
                 snd.play("extra")
+                add_popup("1UP", pac.cx, pac.cy, c.EXTRA_COLOR, now)
 
             st["high"] = max(st["high"], st["score"])
+            st["popups"] = [pp for pp in st["popups"] if now - pp["born"] < c.POPUP_MS]
 
             update_modes(now, dt)
             pt, pd = pac.tile(), pac.dir
             bt = blinky_tile()
+            ms_random = (st["ms_mode"] and st["mode"] == c.CHASE and
+                         (p["chase_ms"] - st["mode_left"]) < MS_RANDOM_CHASE_MS)
             for g in ghosts:
-                g.update(maze, pt, pd, bt, st["mode"], p["ghost_speed"], rng)
+                g.update(maze, pt, pd, bt, st["mode"], p["ghost_speed"], rng,
+                         random_roam=ms_random)
 
             check_collisions(now)
             if st["scene"] == PLAY and maze.cleared():
@@ -313,7 +381,8 @@ def main():
         if st["scene"] == MENU:
             view = {"high": st["high"], "enemies": st["enemies"],
                     "difficulty": st["difficulty"], "sound_on": snd.enabled,
-                    "volume": snd.volume}
+                    "volume": snd.volume, "ms_mode": st["ms_mode"],
+                    "maze_choice": st["maze_choice"]}
             menu.draw(screen, fonts, st["sel"], view, now)
             pygame.display.flip()
             clock.tick(c.FPS)
@@ -330,9 +399,21 @@ def main():
         if st["scene"] != DYING:
             pac.draw(screen, c.HUD_TOP)
         flash = st["fright_until"] and (st["fright_until"] - now) < 2000 and (now // 200) % 2 == 0
-        if st["scene"] not in (DYING,):
+        frozen = now < st["freeze_until"]
+        if st["scene"] not in (DYING, CLEAR):
             for g in ghosts:
+                if frozen and g.state == EYES:
+                    continue                 # во время заморозки показываем только очки
                 g.draw(screen, c.HUD_TOP, flash=flash)
+
+        # всплывающие очки (плывут вверх и гаснут)
+        for pp in st["popups"]:
+            age = (now - pp["born"]) / c.POPUP_MS
+            surf = fonts[1].render(pp["text"], True, pp["color"])
+            x = int(pp["x"]) - surf.get_width() // 2
+            y = int(pp["y"] + c.HUD_TOP - 14 * age) - surf.get_height() // 2
+            screen.blit(surf, (x, y))
+
         draw_hud(screen, fonts, st)
 
         if st["scene"] == READY:

@@ -76,7 +76,8 @@ class Ghost:
         return self.state in (ROAM, LEAVE)
 
     # --- Обновление --------------------------------------------------------
-    def update(self, maze, pac_tile, pac_dir, blinky_tile, mode, speed, rng):
+    def update(self, maze, pac_tile, pac_dir, blinky_tile, mode, speed, rng,
+               random_roam=False):
         if self.state == HOUSE:
             self._do_bob()
         elif self.state == LEAVE:
@@ -91,12 +92,14 @@ class Ghost:
             self.accum += frac
             if self.accum >= 1.0:
                 self.accum -= 1.0
-                self._roam_step(maze, pac_tile, pac_dir, blinky_tile, mode, rng)
+                self._roam_step(maze, pac_tile, pac_dir, blinky_tile, mode, rng,
+                                random_roam)
 
-    def _roam_step(self, maze, pac_tile, pac_dir, blinky_tile, mode, rng):
+    def _roam_step(self, maze, pac_tile, pac_dir, blinky_tile, mode, rng,
+                   random_roam=False):
         if self._aligned():
             col, row = self.col, self.row
-            if self.frightened:
+            if self.frightened or random_roam:
                 self.dir = ai.frightened_dir(maze, col, row, self.dir, rng)
             elif mode == c.SCATTER:
                 self.dir = ai.best_dir(maze, col, row, self.dir, c.SCATTER_TARGETS[self.name])

@@ -38,9 +38,7 @@ def test_tunnel_open_at_edges():
     assert grid.blocked(-1, 5)
 
 
-def test_all_dots_reachable_from_spawn():
-    """Флуд-фолл из старта должен накрыть все точки — уровень проходим."""
-    grid = m.Maze()
+def _reachable(grid):
     start = (13, 23)
     seen = {start}
     q = deque([start])
@@ -48,14 +46,36 @@ def test_all_dots_reachable_from_spawn():
         col, row = q.popleft()
         for dx, dy in (c.UP, c.DOWN, c.LEFT, c.RIGHT):
             ncol, nrow = col + dx, row + dy
-            # обёртка тоннеля
-            if nrow == c.TUNNEL_ROW:
+            if nrow == c.TUNNEL_ROW:            # обёртка тоннеля
                 ncol %= c.COLS
             if (ncol, nrow) in seen:
                 continue
             if not grid.blocked(ncol, nrow):
                 seen.add((ncol, nrow))
                 q.append((ncol, nrow))
+    return seen
+
+
+def test_all_dots_reachable_from_spawn():
+    """Флуд-фолл из старта должен накрыть все точки — уровень проходим."""
+    grid = m.Maze()
+    seen = _reachable(grid)
     dots = {(col, row) for row in range(c.ROWS) for col in range(c.COLS)
             if grid.grid[row][col] in (m.DOT, m.ENERGIZER)}
     assert dots <= seen
+
+
+def test_all_layouts_valid_and_connected():
+    """Каждая схема: 28×31, 4 энергайзера, все точки достижимы, дом на месте."""
+    for idx in range(len(m.LAYOUTS)):
+        layout = m.LAYOUTS[idx]
+        assert len(layout) == c.ROWS
+        assert all(len(line) == c.COLS for line in layout)
+        grid = m.Maze(idx)
+        assert sum(row.count(m.ENERGIZER) for row in grid.grid) == 4
+        assert not grid.blocked(*(13, 23))
+        assert not grid.blocked_ghost(13, 11, gate_ok=True)
+        seen = _reachable(grid)
+        dots = {(col, row) for row in range(c.ROWS) for col in range(c.COLS)
+                if grid.grid[row][col] in (m.DOT, m.ENERGIZER)}
+        assert dots <= seen, f"схема {idx}: недостижимые точки {sorted(dots - seen)}"
