@@ -77,6 +77,11 @@ class Synth:
                 f = 523 if t < 0.33 else (659 if t < 0.66 else 880)
                 return math.sin(two_pi * f * t)
             return self._make(up, 0.5, 0.5)
+        if name == "fruit":           # съеден фрукт — приятный перезвон
+            def chime(t):
+                f = 660 if t < 0.5 else 990
+                return math.sin(two_pi * f * t)
+            return self._make(chime, 0.3, 0.45)
         if name == "extra":           # экстра-жизнь
             return self._make(sweep(700, 1200), 0.2, 0.4)
         if name == "eatghost":        # съели призрака — восходящий «вжух»

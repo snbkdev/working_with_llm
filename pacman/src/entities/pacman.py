@@ -19,6 +19,7 @@ class Pacman:
         self.want_dir = None                      # буфер: последнее нажатие
         self.moving = False
         self.anim = 0                             # фаза анимации рта
+        self.accum = 0.0                          # аккумулятор дробной скорости
 
     # --- Состояние ---------------------------------------------------------
     @property
@@ -43,10 +44,12 @@ class Pacman:
         self.dir = c.NONE
         self.want_dir = None
         self.moving = False
+        self.accum = 0.0
 
     # --- Обновление --------------------------------------------------------
-    def update(self, maze):
-        """Шаг на кадр. Возвращает начисленные за поедание очки (0 — нет)."""
+    def update(self, maze, speed=1.0):
+        """Шаг на кадр (доля `speed` кадров делает ход 2 px, чтобы был запас
+        на ускорение по уровням). Возвращает очки за поедание (0 — нет)."""
         gained = 0
 
         # Разворот на 180° разрешён в любой точке — сразу отзывчиво
@@ -70,11 +73,14 @@ class Pacman:
                 self.moving = (self.dir != c.NONE and
                                not maze.blocked(col + self.dir[0], row + self.dir[1]))
 
-        if self.dir != c.NONE and self.moving:
-            self.cx += self.dir[0] * c.PACMAN_SPEED
-            self.cy += self.dir[1] * c.PACMAN_SPEED
-            self._wrap()
-            self.anim += 1
+        self.accum += speed
+        if self.accum >= 1.0:
+            self.accum -= 1.0
+            if self.dir != c.NONE and self.moving:
+                self.cx += self.dir[0] * c.PACMAN_SPEED
+                self.cy += self.dir[1] * c.PACMAN_SPEED
+                self._wrap()
+                self.anim += 1
 
         return gained
 

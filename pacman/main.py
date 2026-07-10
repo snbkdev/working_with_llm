@@ -20,8 +20,10 @@ from src import storage
 from src.controls import Input
 from src.sound import Synth
 from src.world.maze import Maze
+from src.world import levels
 from src.entities.pacman import Pacman
 from src.entities.ghost import Ghost, ROAM, LEAVE
+from src.entities.fruit import Fruit, draw_icon
 
 SPAWN = (13, 23)
 TOTAL_DOTS = 280
@@ -43,6 +45,12 @@ def draw_hud(screen, fonts, st):
         pygame.draw.circle(screen, c.PACMAN, (c.TILE + i * (c.TILE + 6), y), c.TILE // 2 - 2)
     lvl = small.render(f"LEVEL {st['level']}", True, c.TEXT)
     screen.blit(lvl, (c.WIDTH - lvl.get_width() - c.TILE, y - lvl.get_height() // 2))
+
+    # собранные фрукты — справа от жизней (последние 7)
+    fr = st["fruits_got"][-7:]
+    x0 = c.WIDTH // 2 - len(fr) * (c.TILE + 4) // 2
+    for i, idx in enumerate(fr):
+        draw_icon(screen, x0 + i * (c.TILE + 4), y, idx, c.TILE // 2 - 3)
 
 
 def center_msg(screen, font, text, color):
@@ -70,13 +78,15 @@ def main():
         "level": 1, "scene": MENU, "timer": 0, "sel": 0,
         "enemies": int(saved["enemies"]), "difficulty": int(saved["difficulty"]),
         "mode": c.SCATTER, "mode_left": 0, "fright_until": 0, "eat_chain": 0,
+        "fruit_spawned": set(), "fruits_got": [], "extra_awarded": False,
     }
     maze = Maze()
     pac = Pacman(*SPAWN)
     ghosts = []
+    fruit = Fruit()
 
-    def diff():
-        return c.DIFFS[st["difficulty"]]
+    def params():
+        return levels.params(st["level"], st["difficulty"])
 
     def spawn_ghosts():
         order = [c.BLINKY, c.PINKY, c.INKY, c.CLYDE][:st["enemies"]]
@@ -87,10 +97,14 @@ def main():
         for g in ghosts:
             g.reset()
         st["mode"] = c.SCATTER
-        st["mode_left"] = diff()["scatter_ms"]
+        st["mode_left"] = params()["scatter_ms"]
         st["fright_until"] = 0
         st["eat_chain"] = 0
         inp.clear()
+
+    def reset_level_items():
+        fruit.active = False
+        st["fruit_spawned"] = set()
 
     def persist():
         storage.save({"high": st["high"], "sound": snd.enabled, "volume": snd.volume,
@@ -107,13 +121,16 @@ def main():
     def new_game():
         nonlocal maze
         maze = Maze()
-        st.update(score=0, lives=c.START_LIVES, level=1)
+        st.update(score=0, lives=c.START_LIVES, level=1,
+                  fruits_got=[], extra_awarded=False)
+        reset_level_items()
         start_ready()
 
     def next_level():
         nonlocal maze
         maze = Maze()
         st["level"] += 1
+        reset_level_items()
         start_ready()
 
     def blinky_tile():
@@ -163,12 +180,12 @@ def main():
         st["mode_left"] -= dt
         if st["mode_left"] <= 0:
             st["mode"] = c.CHASE if st["mode"] == c.SCATTER else c.SCATTER
-            st["mode_left"] = diff()["chase_ms" if st["mode"] == c.CHASE else "scatter_ms"]
+            st["mode_left"] = params()["chase_ms" if st["mode"] == c.CHASE else "scatter_ms"]
             for g in ghosts:
                 g.reverse()
 
     def eat_energizer(now):
-        st["fright_until"] = now + diff()["fright_ms"]
+        st["fright_until"] = now + params()["fright_ms"]
         st["eat_chain"] = 0
         for g in ghosts:
             if g.state == ROAM:
@@ -228,14 +245,14 @@ def main():
             if now - st["timer"] >= c.READY_MS:
                 st["scene"] = PLAY
         elif st["scene"] == PLAY:
+            p = params()
             pac.want_dir = inp.direction()
-            gained = pac.update(maze)
+            gained = pac.update(maze, p["pac_speed"])
             if gained == c.PTS_ENERGIZER:
                 eat_energizer(now)
             elif gained == c.PTS_DOT:
                 snd.munch()
             st["score"] += gained
-            st["high"] = max(st["high"], st["score"])
 
             # выпуск призраков по числу съеденных точек
             eaten = TOTAL_DOTS - maze.dots_left
@@ -243,11 +260,31 @@ def main():
                 if eaten >= c.GHOST_RELEASE_DOTS[g.name]:
                     g.release()
 
+            # появление фрукта после порогов съеденных точек
+            for thr in c.FRUIT_DOTS:
+                if eaten >= thr and thr not in st["fruit_spawned"]:
+                    st["fruit_spawned"].add(thr)
+                    fruit.spawn(st["level"], now)
+            fruit.update(now)
+            fpts = fruit.eat(pac.tile())
+            if fpts:
+                st["score"] += fpts
+                st["fruits_got"].append(fruit.idx)
+                snd.play("fruit")
+
+            # экстра-жизнь на пороге очков (один раз)
+            if not st["extra_awarded"] and st["score"] >= c.EXTRA_LIFE_AT:
+                st["extra_awarded"] = True
+                st["lives"] += 1
+                snd.play("extra")
+
+            st["high"] = max(st["high"], st["score"])
+
             update_modes(now, dt)
             pt, pd = pac.tile(), pac.dir
             bt = blinky_tile()
             for g in ghosts:
-                g.update(maze, pt, pd, bt, st["mode"], diff()["ghost_speed"], rng)
+                g.update(maze, pt, pd, bt, st["mode"], p["ghost_speed"], rng)
 
             check_collisions(now)
             if st["scene"] == PLAY and maze.cleared():
@@ -288,6 +325,8 @@ def main():
         if maze_blink:
             maze.draw(screen, c.HUD_TOP, blink=blink)
 
+        if st["scene"] != DYING:
+            fruit.draw(screen, c.HUD_TOP)
         if st["scene"] != DYING:
             pac.draw(screen, c.HUD_TOP)
         flash = st["fright_until"] and (st["fright_until"] - now) < 2000 and (now // 200) % 2 == 0
